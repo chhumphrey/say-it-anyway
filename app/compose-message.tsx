@@ -11,7 +11,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAudioRecorder, RecordingPresets, setAudioModeAsync } from 'expo-audio';
+import { 
+  useAudioRecorder, 
+  RecordingPresets, 
+  setAudioModeAsync,
+  requestRecordingPermissionsAsync,
+  getRecordingPermissionsAsync,
+} from 'expo-audio';
 import { Message } from '@/types';
 import { StorageService } from '@/utils/storage';
 import { useAppTheme } from '@/contexts/ThemeContext';
@@ -27,12 +33,15 @@ export default function ComposeMessageScreen() {
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
+  const [isCheckingPermission, setIsCheckingPermission] = useState(true);
 
   const audioRecorder = useAudioRecorder(RecordingPresets.LOW_QUALITY);
 
   useEffect(() => {
     if (type === 'audio') {
-      requestPermissions();
+      checkAndRequestPermissions();
+    } else {
+      setIsCheckingPermission(false);
     }
   }, [type]);
 
@@ -48,47 +57,95 @@ export default function ComposeMessageScreen() {
     };
   }, [isRecording]);
 
-  const requestPermissions = async () => {
+  const checkAndRequestPermissions = async () => {
     try {
-      const { granted } = await audioRecorder.requestPermissionsAsync();
-      setHasPermission(granted);
+      console.log('Checking audio recording permissions...');
+      setIsCheckingPermission(true);
       
-      if (granted) {
-        await setAudioModeAsync({
-          playsInSilentMode: true,
-          allowsRecording: true,
-        });
+      // First check if we already have permission
+      const existingPermission = await getRecordingPermissionsAsync();
+      console.log('Existing permission status:', existingPermission);
+      
+      if (existingPermission.granted) {
+        setHasPermission(true);
+        await configureAudioMode();
+        setIsCheckingPermission(false);
+        return;
+      }
+
+      // Request permission if not granted
+      console.log('Requesting audio recording permissions...');
+      const permission = await requestRecordingPermissionsAsync();
+      console.log('Permission request result:', permission);
+      
+      setHasPermission(permission.granted);
+      
+      if (permission.granted) {
+        await configureAudioMode();
       } else {
         Alert.alert(
-          'Permission needed',
-          'Microphone access is required to record audio messages.',
-          [{ text: 'OK', onPress: () => router.back() }]
+          'Permission Required',
+          'Microphone access is required to record audio messages. Please enable it in your device settings.',
+          [
+            { text: 'Go Back', onPress: () => router.back() },
+            { text: 'Try Again', onPress: checkAndRequestPermissions },
+          ]
         );
       }
     } catch (error) {
       console.error('Permission error:', error);
-      Alert.alert('Error', 'Could not request microphone permission.');
+      Alert.alert(
+        'Permission Error',
+        'Could not request microphone permission. Please check your device settings.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    } finally {
+      setIsCheckingPermission(false);
+    }
+  };
+
+  const configureAudioMode = async () => {
+    try {
+      console.log('Configuring audio mode...');
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: true,
+      });
+      console.log('Audio mode configured successfully');
+    } catch (error) {
+      console.error('Error configuring audio mode:', error);
     }
   };
 
   const startRecording = async () => {
+    if (!hasPermission) {
+      Alert.alert('Permission Required', 'Please grant microphone permission first.');
+      await checkAndRequestPermissions();
+      return;
+    }
+
     try {
+      console.log('Starting recording...');
       await audioRecorder.prepareToRecordAsync();
       await audioRecorder.record();
       setIsRecording(true);
       setRecordingDuration(0);
+      console.log('Recording started');
     } catch (error) {
       console.error('Recording error:', error);
-      Alert.alert('Error', 'Could not start recording.');
+      Alert.alert('Recording Error', 'Could not start recording. Please try again.');
     }
   };
 
   const stopRecording = async () => {
     try {
+      console.log('Stopping recording...');
       await audioRecorder.stop();
       setIsRecording(false);
+      console.log('Recording stopped. URI:', audioRecorder.uri);
     } catch (error) {
       console.error('Stop recording error:', error);
+      Alert.alert('Error', 'Could not stop recording properly.');
     }
   };
 
@@ -112,6 +169,7 @@ export default function ComposeMessageScreen() {
     setIsSaving(true);
 
     try {
+      console.log('Saving message...');
       const message: Message = {
         id: Date.now().toString(),
         recipientId: recipientId as string,
@@ -124,7 +182,9 @@ export default function ComposeMessageScreen() {
       };
 
       await StorageService.saveMessage(message);
+      console.log('Message saved:', message.id);
 
+      // Update recipient's last message timestamp
       const recipients = await StorageService.getRecipients();
       const recipientIndex = recipients.findIndex(r => r.id === recipientId);
       if (recipientIndex !== -1) {
@@ -132,6 +192,7 @@ export default function ComposeMessageScreen() {
         await StorageService.saveRecipients(recipients);
       }
 
+      // Screen message for mental health concerns
       const contentToScreen = type === 'text' ? textContent : message.transcript || '';
       const screeningResult = screenMessage(contentToScreen);
 
@@ -143,7 +204,7 @@ export default function ComposeMessageScreen() {
       }
     } catch (error) {
       console.error('Save error:', error);
-      Alert.alert('Error', 'Could not save message.');
+      Alert.alert('Error', 'Could not save message. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -194,7 +255,14 @@ export default function ComposeMessageScreen() {
           </View>
         ) : (
           <View style={styles.audioSection}>
-            {!hasPermission ? (
+            {isCheckingPermission ? (
+              <View style={styles.permissionBox}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+                <Text style={[styles.permissionText, { color: theme.colors.text }]}>
+                  Checking permissions...
+                </Text>
+              </View>
+            ) : !hasPermission ? (
               <View style={styles.permissionBox}>
                 <IconSymbol
                   ios_icon_name="mic.slash.fill"
@@ -205,9 +273,12 @@ export default function ComposeMessageScreen() {
                 <Text style={[styles.permissionText, { color: theme.colors.text }]}>
                   Microphone permission required
                 </Text>
+                <Text style={[styles.permissionSubtext, { color: theme.colors.textSecondary }]}>
+                  We need access to your microphone to record audio messages.
+                </Text>
                 <TouchableOpacity
                   style={[styles.permissionButton, { backgroundColor: theme.colors.primary }]}
-                  onPress={requestPermissions}
+                  onPress={checkAndRequestPermissions}
                 >
                   <Text style={styles.permissionButtonText}>Grant Permission</Text>
                 </TouchableOpacity>
@@ -325,12 +396,20 @@ const styles = StyleSheet.create({
   permissionBox: {
     alignItems: 'center',
     paddingVertical: 40,
+    paddingHorizontal: 20,
   },
   permissionText: {
     fontSize: 18,
     fontWeight: '600',
     marginTop: 16,
+    textAlign: 'center',
+  },
+  permissionSubtext: {
+    fontSize: 14,
+    marginTop: 8,
     marginBottom: 24,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   permissionButton: {
     paddingVertical: 14,
