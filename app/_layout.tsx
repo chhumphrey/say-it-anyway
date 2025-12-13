@@ -1,3 +1,4 @@
+
 import "react-native-reanimated";
 import React, { useEffect } from "react";
 import { useFonts } from "expo-font";
@@ -11,10 +12,11 @@ import {
   DarkTheme,
   DefaultTheme,
   Theme,
-  ThemeProvider,
+  ThemeProvider as NavigationThemeProvider,
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -79,7 +81,8 @@ export default function RootLayout() {
   return (
     <>
       <StatusBar style="auto" animated />
-        <ThemeProvider
+      <ThemeProvider>
+        <NavigationThemeProvider
           value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
         >
           <WidgetProvider>
@@ -113,11 +116,46 @@ export default function RootLayout() {
                   headerShown: false,
                 }}
               />
+              <Stack.Screen
+                name="add-recipient"
+                options={{
+                  presentation: "modal",
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="compose-message"
+                options={{
+                  presentation: "modal",
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="support-resources"
+                options={{
+                  presentation: "modal",
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="settings"
+                options={{
+                  presentation: "modal",
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen
+                name="recipient/[id]"
+                options={{
+                  headerShown: false,
+                }}
+              />
             </Stack>
             <SystemBars style={"auto"} />
             </GestureHandlerRootView>
           </WidgetProvider>
-        </ThemeProvider>
+        </NavigationThemeProvider>
+      </ThemeProvider>
     </>
   );
 }
