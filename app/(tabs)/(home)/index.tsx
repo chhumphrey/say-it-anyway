@@ -110,9 +110,9 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={styles.grid}>
-            {recipients.map((recipient) => (
+            {recipients.map((recipient, index) => (
               <TouchableOpacity
-                key={recipient.id}
+                key={recipient.id || `recipient-${index}`}
                 style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
                 onPress={() => router.push(`/recipient/${recipient.id}`)}
               >
