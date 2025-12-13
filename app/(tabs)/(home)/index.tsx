@@ -9,7 +9,7 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Recipient } from '@/types';
 import { StorageService } from '@/utils/storage';
 import { useAppTheme } from '@/contexts/ThemeContext';
@@ -24,12 +24,12 @@ export default function HomeScreen() {
     loadRecipients();
   }, []);
 
-  useEffect(() => {
-    const unsubscribe = router.subscribe(() => {
+  // Use useFocusEffect to reload recipients when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
       loadRecipients();
-    });
-    return () => unsubscribe?.();
-  }, [router]);
+    }, [])
+  );
 
   const loadRecipients = async () => {
     const data = await StorageService.getRecipients();
