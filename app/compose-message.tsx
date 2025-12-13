@@ -23,6 +23,7 @@ import { StorageService } from '@/utils/storage';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { screenMessage } from '@/utils/mentalHealthScreening';
+import { transcribeAudio, getTranscriptionMessage } from '@/utils/transcription';
 
 export default function ComposeMessageScreen() {
   const router = useRouter();
@@ -34,6 +35,7 @@ export default function ComposeMessageScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
   const [isCheckingPermission, setIsCheckingPermission] = useState(true);
+  const [isTranscribing, setIsTranscribing] = useState(false);
 
   const audioRecorder = useAudioRecorder(RecordingPresets.LOW_QUALITY);
 
@@ -62,7 +64,6 @@ export default function ComposeMessageScreen() {
       console.log('Checking audio recording permissions...');
       setIsCheckingPermission(true);
       
-      // First check if we already have permission
       const existingPermission = await getRecordingPermissionsAsync();
       console.log('Existing permission status:', existingPermission);
       
@@ -73,7 +74,6 @@ export default function ComposeMessageScreen() {
         return;
       }
 
-      // Request permission if not granted
       console.log('Requesting audio recording permissions...');
       const permission = await requestRecordingPermissionsAsync();
       console.log('Permission request result:', permission);
@@ -170,6 +170,27 @@ export default function ComposeMessageScreen() {
 
     try {
       console.log('Saving message...');
+      
+      let transcript: string | undefined = undefined;
+      
+      // Attempt transcription for audio messages
+      if (type === 'audio' && audioRecorder.uri) {
+        console.log('Attempting to transcribe audio...');
+        setIsTranscribing(true);
+        
+        const transcriptionResult = await transcribeAudio(audioRecorder.uri);
+        
+        if (transcriptionResult.success && transcriptionResult.transcript) {
+          transcript = transcriptionResult.transcript;
+          console.log('Transcription successful:', transcript);
+        } else {
+          console.log('Transcription not available:', transcriptionResult.error);
+          transcript = undefined;
+        }
+        
+        setIsTranscribing(false);
+      }
+      
       const message: Message = {
         id: Date.now().toString(),
         recipientId: recipientId as string,
@@ -177,7 +198,7 @@ export default function ComposeMessageScreen() {
         type: type as 'text' | 'audio',
         textContent: type === 'text' ? textContent.trim() : undefined,
         audioUri: type === 'audio' ? audioRecorder.uri || undefined : undefined,
-        transcript: type === 'audio' ? 'Audio transcription not available in this version' : undefined,
+        transcript: transcript,
         isHidden: false,
       };
 
@@ -193,20 +214,44 @@ export default function ComposeMessageScreen() {
       }
 
       // Screen message for mental health concerns
-      const contentToScreen = type === 'text' ? textContent : message.transcript || '';
-      const screeningResult = screenMessage(contentToScreen);
-
-      if (screeningResult.isFlagged) {
-        console.log('Mental health screening flagged:', screeningResult);
-        router.replace('/support-resources');
-      } else {
-        router.back();
+      // For text messages, use the text content
+      // For audio messages, use the transcript if available
+      let contentToScreen = '';
+      let shouldScreen = false;
+      
+      if (type === 'text' && textContent.trim()) {
+        contentToScreen = textContent.trim();
+        shouldScreen = true;
+        console.log('Screening text message for mental health concerns');
+      } else if (type === 'audio' && transcript) {
+        contentToScreen = transcript;
+        shouldScreen = true;
+        console.log('Screening transcribed audio for mental health concerns');
+      } else if (type === 'audio' && !transcript) {
+        console.log('Audio message cannot be screened - no transcript available');
+        shouldScreen = false;
       }
+      
+      if (shouldScreen && contentToScreen) {
+        const screeningResult = screenMessage(contentToScreen);
+        console.log('Mental health screening result:', screeningResult);
+
+        if (screeningResult.isFlagged) {
+          console.log('Message flagged for mental health concerns:', screeningResult.matchedPatterns);
+          // Show support resources
+          router.replace('/support-resources');
+          return;
+        }
+      }
+      
+      // If not flagged or couldn't be screened, go back
+      router.back();
     } catch (error) {
       console.error('Save error:', error);
       Alert.alert('Error', 'Could not save message. Please try again.');
     } finally {
       setIsSaving(false);
+      setIsTranscribing(false);
     }
   };
 
@@ -224,8 +269,8 @@ export default function ComposeMessageScreen() {
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
           {type === 'text' ? 'Write Message' : 'Record Audio'}
         </Text>
-        <TouchableOpacity onPress={handleSave} style={styles.saveButton} disabled={isSaving}>
-          {isSaving ? (
+        <TouchableOpacity onPress={handleSave} style={styles.saveButton} disabled={isSaving || isTranscribing}>
+          {isSaving || isTranscribing ? (
             <ActivityIndicator size="small" color={theme.colors.primary} />
           ) : (
             <Text style={[styles.saveText, { color: theme.colors.primary }]}>Save</Text>
@@ -250,7 +295,7 @@ export default function ComposeMessageScreen() {
               textAlignVertical="top"
             />
             <Text style={[styles.hint, { color: theme.colors.textSecondary }]}>
-              This is a safe space to express your thoughts and feelings.
+              This is a safe space to express your thoughts and feelings. Your messages are automatically screened for mental health concerns.
             </Text>
           </View>
         ) : (
@@ -323,6 +368,18 @@ export default function ComposeMessageScreen() {
                     {isRecording ? 'Stop Recording' : audioRecorder.uri ? 'Record Again' : 'Start Recording'}
                   </Text>
                 </TouchableOpacity>
+
+                <View style={[styles.infoBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                  <IconSymbol
+                    ios_icon_name="info.circle.fill"
+                    android_material_icon_name="info"
+                    size={20}
+                    color={theme.colors.textSecondary}
+                  />
+                  <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
+                    {getTranscriptionMessage()}
+                  </Text>
+                </View>
 
                 <Text style={[styles.hint, { color: theme.colors.textSecondary }]}>
                   Tap the button to {isRecording ? 'stop' : 'start'} recording your message.
@@ -453,5 +510,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '600',
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+    maxWidth: '100%',
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
   },
 });
