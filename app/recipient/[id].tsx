@@ -9,7 +9,7 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Recipient, Message } from '@/types';
 import { StorageService } from '@/utils/storage';
 import { useAppTheme } from '@/contexts/ThemeContext';
@@ -27,12 +27,12 @@ export default function RecipientDetailScreen() {
     loadData();
   }, [id]);
 
-  useEffect(() => {
-    const unsubscribe = router.subscribe(() => {
+  // Use useFocusEffect to reload data when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
       loadData();
-    });
-    return () => unsubscribe?.();
-  }, [router]);
+    }, [id])
+  );
 
   const loadData = async () => {
     const recipients = await StorageService.getRecipients();
