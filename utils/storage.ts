@@ -1,10 +1,11 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Recipient, Message, ThemeName } from '@/types';
+import { Recipient, Message, ThemeName, UserProfile } from '@/types';
 
 const RECIPIENTS_KEY = '@grief_journal_recipients';
 const MESSAGES_KEY = '@grief_journal_messages';
 const THEME_KEY = '@grief_journal_theme';
+const PROFILE_KEY = '@grief_journal_profile';
 
 export const StorageService = {
   async getRecipients(): Promise<Recipient[]> {
@@ -22,6 +23,20 @@ export const StorageService = {
       await AsyncStorage.setItem(RECIPIENTS_KEY, JSON.stringify(recipients));
     } catch (error) {
       console.error('Error saving recipients:', error);
+    }
+  },
+
+  async updateRecipient(recipientId: string, updates: Partial<Recipient>): Promise<void> {
+    try {
+      const recipients = await this.getRecipients();
+      const index = recipients.findIndex(r => r.id === recipientId);
+      
+      if (index !== -1) {
+        recipients[index] = { ...recipients[index], ...updates };
+        await this.saveRecipients(recipients);
+      }
+    } catch (error) {
+      console.error('Error updating recipient:', error);
     }
   },
 
@@ -80,6 +95,38 @@ export const StorageService = {
       await AsyncStorage.setItem(THEME_KEY, theme);
     } catch (error) {
       console.error('Error saving theme:', error);
+    }
+  },
+
+  async getUserProfile(): Promise<UserProfile> {
+    try {
+      const data = await AsyncStorage.getItem(PROFILE_KEY);
+      return data ? JSON.parse(data) : {
+        name: 'Your Name',
+        email: '',
+        phone: '',
+        location: '',
+        preferredPronouns: '',
+        photoUri: undefined,
+      };
+    } catch (error) {
+      console.error('Error loading profile:', error);
+      return {
+        name: 'Your Name',
+        email: '',
+        phone: '',
+        location: '',
+        preferredPronouns: '',
+        photoUri: undefined,
+      };
+    }
+  },
+
+  async saveUserProfile(profile: UserProfile): Promise<void> {
+    try {
+      await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+    } catch (error) {
+      console.error('Error saving profile:', error);
     }
   },
 };

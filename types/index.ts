@@ -25,6 +25,15 @@ export interface Message {
   isHidden: boolean;
 }
 
+export interface UserProfile {
+  name: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  preferredPronouns?: string;
+  photoUri?: string;
+}
+
 export type ThemeName = 
   | 'Soft Lavender' 
   | 'Gentle Sky' 

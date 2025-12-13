@@ -10,7 +10,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
-import { ThemeName, themeNames } from '@/utils/themes';
+import { ThemeName, themeNames, themes } from '@/utils/themes';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -48,6 +48,7 @@ export default function SettingsScreen() {
         <View style={styles.themesGrid}>
           {themeNames.map((name) => {
             const isSelected = name === themeName;
+            const themeColors = themes[name].colors;
             return (
               <TouchableOpacity
                 key={name}
@@ -73,9 +74,9 @@ export default function SettingsScreen() {
                 </View>
                 
                 <View style={styles.colorPreview}>
-                  <View style={[styles.colorSwatch, { backgroundColor: theme.colors.primary }]} />
-                  <View style={[styles.colorSwatch, { backgroundColor: theme.colors.secondary }]} />
-                  <View style={[styles.colorSwatch, { backgroundColor: theme.colors.accent }]} />
+                  <View style={[styles.colorSwatch, { backgroundColor: themeColors.primary }]} />
+                  <View style={[styles.colorSwatch, { backgroundColor: themeColors.secondary }]} />
+                  <View style={[styles.colorSwatch, { backgroundColor: themeColors.accent }]} />
                 </View>
               </TouchableOpacity>
             );

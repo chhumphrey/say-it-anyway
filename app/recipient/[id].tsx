@@ -88,7 +88,17 @@ export default function RecipientDetailScreen() {
         <Text style={[styles.headerTitle, { color: theme.colors.text }]} numberOfLines={1}>
           {recipient.name}
         </Text>
-        <View style={{ width: 28 }} />
+        <TouchableOpacity
+          onPress={() => router.push(`/edit-recipient?id=${id}`)}
+          style={styles.editButton}
+        >
+          <IconSymbol
+            ios_icon_name="pencil.circle.fill"
+            android_material_icon_name="edit"
+            size={28}
+            color={theme.colors.primary}
+          />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.recipientInfo}>
@@ -259,6 +269,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
     textAlign: 'center',
+    marginHorizontal: 8,
+  },
+  editButton: {
+    padding: 4,
   },
   recipientInfo: {
     alignItems: 'center',
