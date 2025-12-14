@@ -1,24 +1,140 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { ThemeName, themeNames, themes } from '@/utils/themes';
+import { StorageService, validateAccessCode } from '@/utils/storage';
+import { formatRecordingTime } from '@/utils/transcription';
+import { SubscriptionTier, RecordingTime } from '@/types';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { theme, themeName, setTheme } = useAppTheme();
+  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('Free');
+  const [recordingTime, setRecordingTime] = useState<RecordingTime | null>(null);
+  const [accessCode, setAccessCode] = useState('');
+  const [isUnlocking, setIsUnlocking] = useState(false);
+  const [showAccessCodeInput, setShowAccessCodeInput] = useState(false);
+
+  useEffect(() => {
+    loadSubscriptionData();
+  }, []);
+
+  const loadSubscriptionData = async () => {
+    try {
+      const status = await StorageService.getSubscriptionStatus();
+      setSubscriptionTier(status.tier);
+
+      const time = await StorageService.getRecordingTime();
+      setRecordingTime(time);
+    } catch (error) {
+      console.error('Error loading subscription data:', error);
+    }
+  };
 
   const handleThemeSelect = (newTheme: ThemeName) => {
     setTheme(newTheme);
   };
+
+  const handleUnlockSubscription = async () => {
+    if (!accessCode.trim()) {
+      Alert.alert('Access Code Required', 'Please enter an access code.');
+      return;
+    }
+
+    setIsUnlocking(true);
+
+    try {
+      const isValid = validateAccessCode(accessCode);
+
+      if (isValid) {
+        await StorageService.unlockSubscription();
+        setAccessCode('');
+        setShowAccessCodeInput(false);
+        await loadSubscriptionData();
+        
+        Alert.alert(
+          'Subscription Unlocked!',
+          'You now have access to Subscriber features:\n\n• No ads\n• 60 minutes of Recording Time per month\n\nThank you for supporting Say It Anyway!',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          'Invalid Access Code',
+          'The access code you entered is not valid. Please check and try again.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error unlocking subscription:', error);
+      Alert.alert('Error', 'Could not unlock subscription. Please try again.');
+    } finally {
+      setIsUnlocking(false);
+    }
+  };
+
+  const handleDeactivateUnlock = async () => {
+    Alert.alert(
+      'Deactivate Subscription',
+      'Are you sure you want to return to the Free tier? You will lose access to Subscriber features.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Deactivate',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await StorageService.deactivateSubscriptionUnlock();
+              await loadSubscriptionData();
+              
+              Alert.alert(
+                'Subscription Deactivated',
+                'You have returned to the Free tier.',
+                [{ text: 'OK' }]
+              );
+            } catch (error) {
+              console.error('Error deactivating subscription:', error);
+              Alert.alert('Error', 'Could not deactivate subscription. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const getTotalRecordingTime = () => {
+    if (!recordingTime) return 0;
+    return recordingTime.freeMonthly + recordingTime.subscriberMonthly + recordingTime.purchasedExtra;
+  };
+
+  const getNextPoolInfo = () => {
+    if (!recordingTime) return { poolName: 'None', available: 0 };
+
+    if (recordingTime.freeMonthly > 0) {
+      return { poolName: 'Free Monthly', available: recordingTime.freeMonthly };
+    } else if (recordingTime.subscriberMonthly > 0) {
+      return { poolName: 'Subscriber Monthly', available: recordingTime.subscriberMonthly };
+    } else if (recordingTime.purchasedExtra > 0) {
+      return { poolName: 'Purchased Extra', available: recordingTime.purchasedExtra };
+    }
+
+    return { poolName: 'None', available: 0 };
+  };
+
+  const nextPool = getNextPoolInfo();
+  const totalTime = getTotalRecordingTime();
+  const isLowOnTime = totalTime > 0 && totalTime <= 300;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -38,7 +154,240 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+        {/* Subscription Status */}
+        <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+          <View style={styles.sectionHeader}>
+            <IconSymbol
+              ios_icon_name="star.fill"
+              android_material_icon_name="star"
+              size={24}
+              color={subscriptionTier === 'Free' ? theme.colors.textSecondary : theme.colors.accent}
+            />
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+              Subscription Status
+            </Text>
+          </View>
+          
+          <Text style={[styles.tierText, { color: theme.colors.primary }]}>
+            Current Tier: {subscriptionTier}
+          </Text>
+
+          {subscriptionTier === 'Free' && (
+            <Text style={[styles.tierDescription, { color: theme.colors.textSecondary }]}>
+              • 5 minutes of Recording Time per month{'\n'}
+              • Ads shown on some screens
+            </Text>
+          )}
+
+          {subscriptionTier !== 'Free' && (
+            <Text style={[styles.tierDescription, { color: theme.colors.textSecondary }]}>
+              • 60 minutes of Recording Time per month{'\n'}
+              • No ads
+            </Text>
+          )}
+        </View>
+
+        {/* Recording Time */}
+        <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+          <View style={styles.sectionHeader}>
+            <IconSymbol
+              ios_icon_name="clock.fill"
+              android_material_icon_name="schedule"
+              size={24}
+              color={isLowOnTime ? theme.colors.accent : theme.colors.primary}
+            />
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+              Recording Time
+            </Text>
+          </View>
+
+          {recordingTime ? (
+            <>
+              <View style={styles.timeRow}>
+                <Text style={[styles.timeLabel, { color: theme.colors.text }]}>
+                  Total Available:
+                </Text>
+                <Text style={[styles.timeValue, { color: theme.colors.primary }]}>
+                  {formatRecordingTime(totalTime)}
+                </Text>
+              </View>
+
+              {isLowOnTime && (
+                <View style={[styles.warningBox, { backgroundColor: theme.colors.background, borderColor: theme.colors.accent }]}>
+                  <IconSymbol
+                    ios_icon_name="exclamationmark.triangle.fill"
+                    android_material_icon_name="warning"
+                    size={18}
+                    color={theme.colors.accent}
+                  />
+                  <Text style={[styles.warningText, { color: theme.colors.text }]}>
+                    You&apos;re running low on Recording Time. Consider upgrading to Subscriber for more time.
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.poolsContainer}>
+                <Text style={[styles.poolsTitle, { color: theme.colors.textSecondary }]}>
+                  Available Pools:
+                </Text>
+
+                <View style={styles.poolRow}>
+                  <Text style={[styles.poolLabel, { color: theme.colors.text }]}>
+                    Free Monthly:
+                  </Text>
+                  <Text style={[styles.poolValue, { color: theme.colors.textSecondary }]}>
+                    {formatRecordingTime(recordingTime.freeMonthly)}
+                  </Text>
+                </View>
+
+                {subscriptionTier !== 'Free' && (
+                  <View style={styles.poolRow}>
+                    <Text style={[styles.poolLabel, { color: theme.colors.text }]}>
+                      Subscriber Monthly:
+                    </Text>
+                    <Text style={[styles.poolValue, { color: theme.colors.textSecondary }]}>
+                      {formatRecordingTime(recordingTime.subscriberMonthly)}
+                    </Text>
+                  </View>
+                )}
+
+                {recordingTime.purchasedExtra > 0 && (
+                  <View style={styles.poolRow}>
+                    <Text style={[styles.poolLabel, { color: theme.colors.text }]}>
+                      Purchased Extra:
+                    </Text>
+                    <Text style={[styles.poolValue, { color: theme.colors.textSecondary }]}>
+                      {formatRecordingTime(recordingTime.purchasedExtra)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={[styles.infoBox, { backgroundColor: theme.colors.background }]}>
+                <IconSymbol
+                  ios_icon_name="info.circle"
+                  android_material_icon_name="info"
+                  size={16}
+                  color={theme.colors.textSecondary}
+                />
+                <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
+                  Next pool to be used: {nextPool.poolName}
+                  {nextPool.available > 0 && ` (${formatRecordingTime(nextPool.available)})`}
+                </Text>
+              </View>
+
+              <Text style={[styles.resetInfo, { color: theme.colors.textSecondary }]}>
+                Monthly pools reset on the 1st of each month. Purchased extra time rolls over.
+              </Text>
+            </>
+          ) : (
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+          )}
+        </View>
+
+        {/* Unlock Subscription */}
+        <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+          <View style={styles.sectionHeader}>
+            <IconSymbol
+              ios_icon_name="lock.open.fill"
+              android_material_icon_name="lock-open"
+              size={24}
+              color={theme.colors.primary}
+            />
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+              Unlock Subscription
+            </Text>
+          </View>
+
+          {subscriptionTier === 'Subscriber (Unlocked)' ? (
+            <>
+              <Text style={[styles.unlockDescription, { color: theme.colors.textSecondary }]}>
+                Your subscription is currently unlocked. You have access to all Subscriber features.
+              </Text>
+              
+              <TouchableOpacity
+                style={[styles.deactivateButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.danger }]}
+                onPress={handleDeactivateUnlock}
+              >
+                <Text style={[styles.deactivateButtonText, { color: theme.colors.danger }]}>
+                  Deactivate Unlock
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.unlockDescription, { color: theme.colors.textSecondary }]}>
+                Enter an access code to unlock Subscriber features for testing or development purposes.
+              </Text>
+
+              {!showAccessCodeInput ? (
+                <TouchableOpacity
+                  style={[styles.unlockButton, { backgroundColor: theme.colors.primary }]}
+                  onPress={() => setShowAccessCodeInput(true)}
+                >
+                  <Text style={styles.unlockButtonText}>
+                    Enter Access Code
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.accessCodeContainer}>
+                  <TextInput
+                    style={[styles.accessCodeInput, { backgroundColor: theme.colors.background, color: theme.colors.text, borderColor: theme.colors.border }]}
+                    value={accessCode}
+                    onChangeText={setAccessCode}
+                    placeholder="Enter access code"
+                    placeholderTextColor={theme.colors.textSecondary}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                  />
+                  
+                  <View style={styles.accessCodeButtons}>
+                    <TouchableOpacity
+                      style={[styles.cancelButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                      onPress={() => {
+                        setShowAccessCodeInput(false);
+                        setAccessCode('');
+                      }}
+                    >
+                      <Text style={[styles.cancelButtonText, { color: theme.colors.text }]}>
+                        Cancel
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.submitButton, { backgroundColor: theme.colors.primary }]}
+                      onPress={handleUnlockSubscription}
+                      disabled={isUnlocking}
+                    >
+                      {isUnlocking ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.submitButtonText}>
+                          Unlock
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              <View style={[styles.infoBox, { backgroundColor: theme.colors.background }]}>
+                <IconSymbol
+                  ios_icon_name="info.circle"
+                  android_material_icon_name="info"
+                  size={16}
+                  color={theme.colors.textSecondary}
+                />
+                <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
+                  This is for testing purposes only. In production, subscriptions would be managed through app store billing.
+                </Text>
+              </View>
+            </>
+          )}
+        </View>
+
+        {/* Theme Selection */}
+        <Text style={[styles.mainSectionTitle, { color: theme.colors.text }]}>
           Choose Your Theme
         </Text>
         <Text style={[styles.sectionDescription, { color: theme.colors.textSecondary }]}>
@@ -46,12 +395,12 @@ export default function SettingsScreen() {
         </Text>
 
         <View style={styles.themesGrid}>
-          {themeNames.map((name) => {
+          {themeNames.map((name, index) => {
             const isSelected = name === themeName;
             const themeColors = themes[name].colors;
             return (
               <TouchableOpacity
-                key={name}
+                key={index}
                 style={[
                   styles.themeCard,
                   { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
@@ -83,7 +432,7 @@ export default function SettingsScreen() {
           })}
         </View>
 
-        <View style={[styles.infoBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+        <View style={[styles.infoBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, marginTop: 24 }]}>
           <IconSymbol
             ios_icon_name="info.circle.fill"
             android_material_icon_name="info"
@@ -126,12 +475,170 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 40,
+    paddingBottom: 100,
+  },
+  section: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
   },
   sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  tierText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  tierDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  timeLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  timeValue: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  poolsContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(128, 128, 128, 0.2)',
+  },
+  poolsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  poolRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  poolLabel: {
+    fontSize: 14,
+  },
+  poolValue: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  resetInfo: {
+    fontSize: 12,
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  unlockDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  unlockButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  unlockButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  deactivateButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    borderWidth: 2,
+    alignItems: 'center',
+  },
+  deactivateButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  accessCodeContainer: {
+    gap: 12,
+  },
+  accessCodeInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+  },
+  accessCodeButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  submitButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  submitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  mainSectionTitle: {
     fontSize: 24,
     fontWeight: '700',
     marginBottom: 8,
+    marginTop: 12,
   },
   sectionDescription: {
     fontSize: 16,
@@ -164,19 +671,5 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 8,
-  },
-  infoBox: {
-    flexDirection: 'row',
-    gap: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 16,
-    marginTop: 24,
-    alignItems: 'flex-start',
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
   },
 });

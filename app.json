@@ -1,8 +1,7 @@
-
 {
   "expo": {
-    "name": "Unsaid Messages",
-    "slug": "Unsaid Messages",
+    "name": "Say It Anyway: Grief Journal",
+    "slug": "Say It Anyway: Grief Journal",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
@@ -55,5 +54,5 @@
       "router": {}
     }
   },
-  "scheme": "Unsaid Messages"
+  "scheme": "Say It Anyway: Grief Journal"
 }
