@@ -251,14 +251,27 @@ function MessageCard({
   formatDate,
   formatDuration,
 }: MessageCardProps) {
-  const [textLines, setTextLines] = useState(0);
-  const [needsTruncation, setNeedsTruncation] = useState(false);
+  const [textLineCount, setTextLineCount] = useState(0);
+  const [transcriptLineCount, setTranscriptLineCount] = useState(0);
 
   const handleTextLayout = (e: any) => {
-    const lines = e.nativeEvent.lines.length;
-    setTextLines(lines);
-    setNeedsTruncation(lines > 4);
+    const lines = e.nativeEvent.lines;
+    if (lines && lines.length) {
+      setTextLineCount(lines.length);
+      console.log('Text line count:', lines.length);
+    }
   };
+
+  const handleTranscriptLayout = (e: any) => {
+    const lines = e.nativeEvent.lines;
+    if (lines && lines.length) {
+      setTranscriptLineCount(lines.length);
+      console.log('Transcript line count:', lines.length);
+    }
+  };
+
+  const textNeedsTruncation = textLineCount > 4;
+  const transcriptNeedsTruncation = transcriptLineCount > 4;
 
   return (
     <View
@@ -311,7 +324,7 @@ function MessageCard({
           >
             {message.textContent}
           </Text>
-          {needsTruncation && (
+          {textNeedsTruncation && (
             <TouchableOpacity onPress={onToggleExpanded} style={styles.showAllButton}>
               <Text style={[styles.showAllText, { color: theme.colors.primary }]}>
                 {isExpanded ? 'Show Less' : 'Show All'}
@@ -329,10 +342,11 @@ function MessageCard({
           <Text
             style={[styles.transcriptText, { color: theme.colors.text }]}
             numberOfLines={isExpanded ? undefined : 4}
+            onTextLayout={handleTranscriptLayout}
           >
             {message.transcript}
           </Text>
-          {message.transcript.split('\n').length > 4 && (
+          {transcriptNeedsTruncation && (
             <TouchableOpacity onPress={onToggleExpanded} style={styles.showAllButton}>
               <Text style={[styles.showAllText, { color: theme.colors.primary }]}>
                 {isExpanded ? 'Show Less' : 'Show All'}
@@ -357,13 +371,28 @@ function AudioPlayer({ audioUri, audioDuration, theme, formatDuration }: AudioPl
   const status = useAudioPlayerStatus(player);
 
   const handlePlayPause = () => {
+    console.log('Play/Pause button pressed. Current status:', {
+      playing: status.playing,
+      currentTime: status.currentTime,
+      duration: status.duration,
+      isLoaded: status.isLoaded,
+    });
+
+    if (!status.isLoaded) {
+      console.log('Audio not loaded yet');
+      return;
+    }
+
     if (status.playing) {
+      console.log('Pausing audio');
       player.pause();
     } else {
+      // If at the end, restart from beginning
       if (status.currentTime >= (status.duration || 0) - 0.1) {
-        // If at the end, restart from beginning
+        console.log('Restarting from beginning');
         player.seekTo(0);
       }
+      console.log('Playing audio');
       player.play();
     }
   };
