@@ -10,10 +10,15 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Recipient, Message } from '@/types';
 import { StorageService } from '@/utils/storage';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
+
+interface AudioPlayerState {
+  [messageId: string]: ReturnType<typeof useAudioPlayer>;
+}
 
 export default function RecipientDetailScreen() {
   const router = useRouter();
@@ -22,6 +27,7 @@ export default function RecipientDetailScreen() {
   const [recipient, setRecipient] = useState<Recipient | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [showHidden, setShowHidden] = useState(false);
+  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadData();
@@ -49,6 +55,18 @@ export default function RecipientDetailScreen() {
     loadData();
   };
 
+  const toggleExpanded = (messageId: string) => {
+    setExpandedMessages(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
+      }
+      return newSet;
+    });
+  };
+
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
     return date.toLocaleDateString('en-US', {
@@ -58,6 +76,12 @@ export default function RecipientDetailScreen() {
       hour: 'numeric',
       minute: '2-digit',
     });
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const visibleMessages = showHidden 
@@ -191,59 +215,195 @@ export default function RecipientDetailScreen() {
           </View>
         ) : (
           visibleMessages.map((message) => (
-            <View
+            <MessageCard
               key={message.id}
-              style={[
-                styles.messageCard,
-                { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
-                message.isHidden && { opacity: 0.6 },
-              ]}
-            >
-              <View style={styles.messageHeader}>
-                <View style={styles.messageTypeIcon}>
-                  <IconSymbol
-                    ios_icon_name={message.type === 'audio' ? 'waveform' : 'text.bubble.fill'}
-                    android_material_icon_name={message.type === 'audio' ? 'graphic-eq' : 'message'}
-                    size={16}
-                    color={theme.colors.primary}
-                  />
-                </View>
-                <Text style={[styles.messageDate, { color: theme.colors.textSecondary }]}>
-                  {formatDate(message.timestamp)}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => toggleHidden(message.id, message.isHidden)}
-                  style={styles.hideButton}
-                >
-                  <IconSymbol
-                    ios_icon_name={message.isHidden ? 'eye.fill' : 'eye.slash.fill'}
-                    android_material_icon_name={message.isHidden ? 'visibility' : 'visibility-off'}
-                    size={20}
-                    color={theme.colors.textSecondary}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {message.textContent && (
-                <Text style={[styles.messageText, { color: theme.colors.text }]}>
-                  {message.textContent}
-                </Text>
-              )}
-
-              {message.transcript && message.type === 'audio' && (
-                <View style={[styles.transcriptBox, { backgroundColor: theme.colors.background }]}>
-                  <Text style={[styles.transcriptLabel, { color: theme.colors.textSecondary }]}>
-                    Transcript:
-                  </Text>
-                  <Text style={[styles.transcriptText, { color: theme.colors.text }]}>
-                    {message.transcript}
-                  </Text>
-                </View>
-              )}
-            </View>
+              message={message}
+              theme={theme}
+              isExpanded={expandedMessages.has(message.id)}
+              onToggleExpanded={() => toggleExpanded(message.id)}
+              onToggleHidden={() => toggleHidden(message.id, message.isHidden)}
+              formatDate={formatDate}
+              formatDuration={formatDuration}
+            />
           ))
         )}
       </ScrollView>
+    </View>
+  );
+}
+
+interface MessageCardProps {
+  message: Message;
+  theme: any;
+  isExpanded: boolean;
+  onToggleExpanded: () => void;
+  onToggleHidden: () => void;
+  formatDate: (timestamp: number) => string;
+  formatDuration: (seconds: number) => string;
+}
+
+function MessageCard({
+  message,
+  theme,
+  isExpanded,
+  onToggleExpanded,
+  onToggleHidden,
+  formatDate,
+  formatDuration,
+}: MessageCardProps) {
+  const [textLines, setTextLines] = useState(0);
+  const [needsTruncation, setNeedsTruncation] = useState(false);
+
+  const handleTextLayout = (e: any) => {
+    const lines = e.nativeEvent.lines.length;
+    setTextLines(lines);
+    setNeedsTruncation(lines > 4);
+  };
+
+  return (
+    <View
+      style={[
+        styles.messageCard,
+        { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
+        message.isHidden && { opacity: 0.6 },
+      ]}
+    >
+      <View style={styles.messageHeader}>
+        <View style={styles.messageTypeIcon}>
+          <IconSymbol
+            ios_icon_name={message.type === 'audio' ? 'waveform' : 'text.bubble.fill'}
+            android_material_icon_name={message.type === 'audio' ? 'graphic-eq' : 'message'}
+            size={16}
+            color={theme.colors.primary}
+          />
+        </View>
+        <Text style={[styles.messageDate, { color: theme.colors.textSecondary }]}>
+          {formatDate(message.timestamp)}
+        </Text>
+        <TouchableOpacity
+          onPress={onToggleHidden}
+          style={styles.hideButton}
+        >
+          <IconSymbol
+            ios_icon_name={message.isHidden ? 'eye.fill' : 'eye.slash.fill'}
+            android_material_icon_name={message.isHidden ? 'visibility' : 'visibility-off'}
+            size={20}
+            color={theme.colors.textSecondary}
+          />
+        </TouchableOpacity>
+      </View>
+
+      {message.type === 'audio' && message.audioUri && (
+        <AudioPlayer
+          audioUri={message.audioUri}
+          audioDuration={message.audioDuration}
+          theme={theme}
+          formatDuration={formatDuration}
+        />
+      )}
+
+      {message.textContent && (
+        <View>
+          <Text
+            style={[styles.messageText, { color: theme.colors.text }]}
+            numberOfLines={isExpanded ? undefined : 4}
+            onTextLayout={handleTextLayout}
+          >
+            {message.textContent}
+          </Text>
+          {needsTruncation && (
+            <TouchableOpacity onPress={onToggleExpanded} style={styles.showAllButton}>
+              <Text style={[styles.showAllText, { color: theme.colors.primary }]}>
+                {isExpanded ? 'Show Less' : 'Show All'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {message.transcript && message.type === 'audio' && (
+        <View style={[styles.transcriptBox, { backgroundColor: theme.colors.background }]}>
+          <Text style={[styles.transcriptLabel, { color: theme.colors.textSecondary }]}>
+            Transcript:
+          </Text>
+          <Text
+            style={[styles.transcriptText, { color: theme.colors.text }]}
+            numberOfLines={isExpanded ? undefined : 4}
+          >
+            {message.transcript}
+          </Text>
+          {message.transcript.split('\n').length > 4 && (
+            <TouchableOpacity onPress={onToggleExpanded} style={styles.showAllButton}>
+              <Text style={[styles.showAllText, { color: theme.colors.primary }]}>
+                {isExpanded ? 'Show Less' : 'Show All'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+interface AudioPlayerProps {
+  audioUri: string;
+  audioDuration?: number;
+  theme: any;
+  formatDuration: (seconds: number) => string;
+}
+
+function AudioPlayer({ audioUri, audioDuration, theme, formatDuration }: AudioPlayerProps) {
+  const player = useAudioPlayer(audioUri);
+  const status = useAudioPlayerStatus(player);
+
+  const handlePlayPause = () => {
+    if (status.playing) {
+      player.pause();
+    } else {
+      if (status.currentTime >= (status.duration || 0) - 0.1) {
+        // If at the end, restart from beginning
+        player.seekTo(0);
+      }
+      player.play();
+    }
+  };
+
+  const currentTime = status.currentTime || 0;
+  const duration = status.duration || audioDuration || 0;
+  const progress = duration > 0 ? currentTime / duration : 0;
+
+  return (
+    <View style={[styles.audioPlayerContainer, { backgroundColor: theme.colors.background }]}>
+      <TouchableOpacity
+        onPress={handlePlayPause}
+        style={[styles.playButton, { backgroundColor: theme.colors.primary }]}
+      >
+        <IconSymbol
+          ios_icon_name={status.playing ? 'pause.fill' : 'play.fill'}
+          android_material_icon_name={status.playing ? 'pause' : 'play-arrow'}
+          size={24}
+          color="#FFFFFF"
+        />
+      </TouchableOpacity>
+
+      <View style={styles.audioInfo}>
+        <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
+          <View
+            style={[
+              styles.progressFill,
+              { backgroundColor: theme.colors.primary, width: `${progress * 100}%` },
+            ]}
+          />
+        </View>
+        <View style={styles.timeContainer}>
+          <Text style={[styles.timeText, { color: theme.colors.textSecondary }]}>
+            {formatDuration(currentTime)}
+          </Text>
+          <Text style={[styles.timeText, { color: theme.colors.textSecondary }]}>
+            {formatDuration(duration)}
+          </Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -383,6 +543,49 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: 16,
     lineHeight: 24,
+  },
+  showAllButton: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  showAllText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  audioPlayerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  playButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  audioInfo: {
+    flex: 1,
+  },
+  progressBar: {
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  timeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  timeText: {
+    fontSize: 12,
   },
   transcriptBox: {
     marginTop: 12,
