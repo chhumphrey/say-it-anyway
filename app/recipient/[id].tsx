@@ -16,6 +16,7 @@ import { Recipient, Message } from '@/types';
 import { StorageService } from '@/utils/storage';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
+import { AdBanner } from '@/components/AdBanner';
 
 interface AudioPlayerState {
   [messageId: string]: ReturnType<typeof useAudioPlayer>;
@@ -126,79 +127,82 @@ export default function RecipientDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.recipientInfo}>
-        {recipient.photoUri ? (
-          <Image source={{ uri: recipient.photoUri }} style={styles.photo} />
-        ) : (
-          <View style={[styles.photoPlaceholder, { backgroundColor: theme.colors.secondary }]}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Ad Banner at top - only shown for free tier */}
+        <AdBanner screenName="recipient" />
+
+        <View style={styles.recipientInfo}>
+          {recipient.photoUri ? (
+            <Image source={{ uri: recipient.photoUri }} style={styles.photo} />
+          ) : (
+            <View style={[styles.photoPlaceholder, { backgroundColor: theme.colors.secondary }]}>
+              <IconSymbol
+                ios_icon_name="person.fill"
+                android_material_icon_name="person"
+                size={50}
+                color={theme.colors.primary}
+              />
+            </View>
+          )}
+          
+          <Text style={[styles.name, { color: theme.colors.text }]}>
+            {recipient.name}
+          </Text>
+          
+          {recipient.nickname && (
+            <Text style={[styles.nickname, { color: theme.colors.textSecondary }]}>
+              &quot;{recipient.nickname}&quot;
+            </Text>
+          )}
+
+          {(recipient.dateOfBirth || recipient.dateOfDeath) && (
+            <Text style={[styles.dates, { color: theme.colors.textSecondary }]}>
+              {recipient.dateOfBirth && `Born: ${recipient.dateOfBirth}`}
+              {recipient.dateOfBirth && recipient.dateOfDeath && ' • '}
+              {recipient.dateOfDeath && `Passed: ${recipient.dateOfDeath}`}
+            </Text>
+          )}
+        </View>
+
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+            onPress={() => router.push(`/compose-message?recipientId=${id}&type=text`)}
+          >
             <IconSymbol
-              ios_icon_name="person.fill"
-              android_material_icon_name="person"
-              size={50}
-              color={theme.colors.primary}
+              ios_icon_name="pencil"
+              android_material_icon_name="edit"
+              size={20}
+              color="#FFFFFF"
             />
-          </View>
-        )}
-        
-        <Text style={[styles.name, { color: theme.colors.text }]}>
-          {recipient.name}
-        </Text>
-        
-        {recipient.nickname && (
-          <Text style={[styles.nickname, { color: theme.colors.textSecondary }]}>
-            &quot;{recipient.nickname}&quot;
+            <Text style={styles.actionButtonText}>Write Message</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: theme.colors.accent }]}
+            onPress={() => router.push(`/compose-message?recipientId=${id}&type=audio`)}
+          >
+            <IconSymbol
+              ios_icon_name="mic.fill"
+              android_material_icon_name="mic"
+              size={20}
+              color="#FFFFFF"
+            />
+            <Text style={styles.actionButtonText}>Record Audio</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.messagesHeader}>
+          <Text style={[styles.messagesTitle, { color: theme.colors.text }]}>
+            Messages ({visibleMessages.length})
           </Text>
-        )}
+          <TouchableOpacity onPress={() => setShowHidden(!showHidden)}>
+            <Text style={[styles.toggleText, { color: theme.colors.primary }]}>
+              {showHidden ? 'Hide Hidden' : 'Show Hidden'}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-        {(recipient.dateOfBirth || recipient.dateOfDeath) && (
-          <Text style={[styles.dates, { color: theme.colors.textSecondary }]}>
-            {recipient.dateOfBirth && `Born: ${recipient.dateOfBirth}`}
-            {recipient.dateOfBirth && recipient.dateOfDeath && ' • '}
-            {recipient.dateOfDeath && `Passed: ${recipient.dateOfDeath}`}
-          </Text>
-        )}
-      </View>
-
-      <View style={styles.actionButtons}>
-        <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
-          onPress={() => router.push(`/compose-message?recipientId=${id}&type=text`)}
-        >
-          <IconSymbol
-            ios_icon_name="pencil"
-            android_material_icon_name="edit"
-            size={20}
-            color="#FFFFFF"
-          />
-          <Text style={styles.actionButtonText}>Write Message</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: theme.colors.accent }]}
-          onPress={() => router.push(`/compose-message?recipientId=${id}&type=audio`)}
-        >
-          <IconSymbol
-            ios_icon_name="mic.fill"
-            android_material_icon_name="mic"
-            size={20}
-            color="#FFFFFF"
-          />
-          <Text style={styles.actionButtonText}>Record Audio</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.messagesHeader}>
-        <Text style={[styles.messagesTitle, { color: theme.colors.text }]}>
-          Messages ({visibleMessages.length})
-        </Text>
-        <TouchableOpacity onPress={() => setShowHidden(!showHidden)}>
-          <Text style={[styles.toggleText, { color: theme.colors.primary }]}>
-            {showHidden ? 'Hide Hidden' : 'Show Hidden'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.messagesList} contentContainerStyle={styles.messagesContent}>
         {visibleMessages.length === 0 ? (
           <View style={styles.emptyState}>
             <IconSymbol
@@ -520,9 +524,16 @@ const styles = StyleSheet.create({
   editButton: {
     padding: 4,
   },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
+  },
   recipientInfo: {
     alignItems: 'center',
     paddingVertical: 24,
+    paddingHorizontal: 20,
   },
   photo: {
     width: 100,
@@ -585,16 +596,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  messagesList: {
-    flex: 1,
-  },
-  messagesContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-  },
   emptyState: {
     alignItems: 'center',
     paddingTop: 60,
+    paddingHorizontal: 20,
   },
   emptyText: {
     fontSize: 18,
@@ -610,6 +615,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 16,
     marginBottom: 12,
+    marginHorizontal: 20,
   },
   messageHeader: {
     flexDirection: 'row',

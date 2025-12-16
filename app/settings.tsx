@@ -17,6 +17,8 @@ import { ThemeName, themeNames, themes } from '@/utils/themes';
 import { StorageService, validateAccessCode } from '@/utils/storage';
 import { formatRecordingTime } from '@/utils/transcription';
 import { SubscriptionTier, RecordingTime } from '@/types';
+import { billingService } from '@/utils/billingService';
+import { BillingConfig } from '@/constants/BillingConfig';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -26,10 +28,23 @@ export default function SettingsScreen() {
   const [accessCode, setAccessCode] = useState('');
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [showAccessCodeInput, setShowAccessCodeInput] = useState(false);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   useEffect(() => {
     loadSubscriptionData();
+    initializeBilling();
   }, []);
+
+  const initializeBilling = async () => {
+    try {
+      await billingService.initialize();
+      await billingService.checkSubscriptionStatus();
+      await loadSubscriptionData();
+    } catch (error) {
+      console.error('Error initializing billing:', error);
+    }
+  };
 
   const loadSubscriptionData = async () => {
     try {
@@ -45,6 +60,87 @@ export default function SettingsScreen() {
 
   const handleThemeSelect = (newTheme: ThemeName) => {
     setTheme(newTheme);
+  };
+
+  const handleSubscribe = async () => {
+    setIsPurchasing(true);
+    try {
+      const result = await billingService.purchaseSubscription();
+      
+      if (result.success) {
+        await loadSubscriptionData();
+        Alert.alert(
+          'Subscription Activated!',
+          'Thank you for subscribing! You now have:\n\n• 60 minutes of Recording Time per month\n• No ads\n\nYour subscription will renew automatically each month.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          'Purchase Failed',
+          result.error || 'Could not complete the purchase. Please try again.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error subscribing:', error);
+      Alert.alert('Error', 'Could not complete the purchase. Please try again.');
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
+
+  const handleBuyExtraTime = async () => {
+    setIsPurchasing(true);
+    try {
+      const result = await billingService.purchaseExtraTime();
+      
+      if (result.success) {
+        await loadSubscriptionData();
+        Alert.alert(
+          'Extra Time Added!',
+          'You now have an additional 60 minutes of Recording Time. This time rolls over and never expires!',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          'Purchase Failed',
+          result.error || 'Could not complete the purchase. Please try again.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error buying extra time:', error);
+      Alert.alert('Error', 'Could not complete the purchase. Please try again.');
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
+
+  const handleRestorePurchases = async () => {
+    setIsRestoring(true);
+    try {
+      const result = await billingService.restorePurchases();
+      
+      if (result.success) {
+        await loadSubscriptionData();
+        Alert.alert(
+          'Purchases Restored',
+          'Your purchases have been restored successfully.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          'Restore Failed',
+          result.error || 'Could not restore purchases. Please try again.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error restoring purchases:', error);
+      Alert.alert('Error', 'Could not restore purchases. Please try again.');
+    } finally {
+      setIsRestoring(false);
+    }
   };
 
   const handleUnlockSubscription = async () => {
@@ -135,6 +231,7 @@ export default function SettingsScreen() {
   const nextPool = getNextPoolInfo();
   const totalTime = getTotalRecordingTime();
   const isLowOnTime = totalTime > 0 && totalTime <= 300;
+  const isSubscriber = subscriptionTier !== 'Free';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -173,10 +270,34 @@ export default function SettingsScreen() {
           </Text>
 
           {subscriptionTier === 'Free' && (
-            <Text style={[styles.tierDescription, { color: theme.colors.textSecondary }]}>
-              • 5 minutes of Recording Time per month{'\n'}
-              • Ads shown on some screens
-            </Text>
+            <>
+              <Text style={[styles.tierDescription, { color: theme.colors.textSecondary }]}>
+                • 5 minutes of Recording Time per month{'\n'}
+                • Ads shown on some screens
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.subscribeButton, { backgroundColor: theme.colors.primary }]}
+                onPress={handleSubscribe}
+                disabled={isPurchasing}
+              >
+                {isPurchasing ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <IconSymbol
+                      ios_icon_name="star.fill"
+                      android_material_icon_name="star"
+                      size={20}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.subscribeButtonText}>
+                      Subscribe for ${BillingConfig.products.subscription.price}/month
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
           )}
 
           {subscriptionTier !== 'Free' && (
@@ -279,30 +400,94 @@ export default function SettingsScreen() {
               <Text style={[styles.resetInfo, { color: theme.colors.textSecondary }]}>
                 Monthly pools reset on the 1st of each month. Purchased extra time rolls over.
               </Text>
+
+              {/* Buy Extra Time Button - Only for Subscribers */}
+              {isSubscriber && (
+                <TouchableOpacity
+                  style={[styles.extraTimeButton, { backgroundColor: theme.colors.accent }]}
+                  onPress={handleBuyExtraTime}
+                  disabled={isPurchasing}
+                >
+                  {isPurchasing ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <IconSymbol
+                        ios_icon_name="plus.circle.fill"
+                        android_material_icon_name="add-circle"
+                        size={20}
+                        color="#FFFFFF"
+                      />
+                      <Text style={styles.extraTimeButtonText}>
+                        Buy Extra Time (${BillingConfig.products.extraTime.price})
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
             </>
           ) : (
             <ActivityIndicator size="small" color={theme.colors.primary} />
           )}
         </View>
 
-        {/* Unlock Subscription */}
+        {/* Restore Purchases */}
+        <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+          <View style={styles.sectionHeader}>
+            <IconSymbol
+              ios_icon_name="arrow.clockwise.circle.fill"
+              android_material_icon_name="restore"
+              size={24}
+              color={theme.colors.primary}
+            />
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+              Restore Purchases
+            </Text>
+          </View>
+
+          <Text style={[styles.restoreDescription, { color: theme.colors.textSecondary }]}>
+            If you previously purchased a subscription or extra time on this device or another device, tap below to restore your purchases.
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.restoreButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.primary }]}
+            onPress={handleRestorePurchases}
+            disabled={isRestoring}
+          >
+            {isRestoring ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+            ) : (
+              <Text style={[styles.restoreButtonText, { color: theme.colors.primary }]}>
+                Restore Purchases
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Developer/Test Access Code */}
         <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <View style={styles.sectionHeader}>
             <IconSymbol
               ios_icon_name="lock.open.fill"
               android_material_icon_name="lock-open"
               size={24}
-              color={theme.colors.primary}
+              color={theme.colors.textSecondary}
             />
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Unlock Subscription
+              Developer/Test Access Code
+            </Text>
+          </View>
+
+          <View style={[styles.devBadge, { backgroundColor: theme.colors.background, borderColor: theme.colors.textSecondary }]}>
+            <Text style={[styles.devBadgeText, { color: theme.colors.textSecondary }]}>
+              FOR TESTING ONLY
             </Text>
           </View>
 
           {subscriptionTier === 'Subscriber (Unlocked)' ? (
             <>
               <Text style={[styles.unlockDescription, { color: theme.colors.textSecondary }]}>
-                Your subscription is currently unlocked. You have access to all Subscriber features.
+                Your subscription is currently unlocked via access code. You have access to all Subscriber features.
               </Text>
               
               <TouchableOpacity
@@ -317,12 +502,12 @@ export default function SettingsScreen() {
           ) : (
             <>
               <Text style={[styles.unlockDescription, { color: theme.colors.textSecondary }]}>
-                Enter an access code to unlock Subscriber features for testing or development purposes.
+                Enter an access code to unlock Subscriber features for testing or development purposes. This does not affect store billing.
               </Text>
 
               {!showAccessCodeInput ? (
                 <TouchableOpacity
-                  style={[styles.unlockButton, { backgroundColor: theme.colors.primary }]}
+                  style={[styles.unlockButton, { backgroundColor: theme.colors.textSecondary }]}
                   onPress={() => setShowAccessCodeInput(true)}
                 >
                   <Text style={styles.unlockButtonText}>
@@ -355,7 +540,7 @@ export default function SettingsScreen() {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      style={[styles.submitButton, { backgroundColor: theme.colors.primary }]}
+                      style={[styles.submitButton, { backgroundColor: theme.colors.textSecondary }]}
                       onPress={handleUnlockSubscription}
                       disabled={isUnlocking}
                     >
@@ -370,18 +555,6 @@ export default function SettingsScreen() {
                   </View>
                 </View>
               )}
-
-              <View style={[styles.infoBox, { backgroundColor: theme.colors.background }]}>
-                <IconSymbol
-                  ios_icon_name="info.circle"
-                  android_material_icon_name="info"
-                  size={16}
-                  color={theme.colors.textSecondary}
-                />
-                <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-                  This is for testing purposes only. In production, subscriptions would be managed through app store billing.
-                </Text>
-              </View>
             </>
           )}
         </View>
@@ -501,6 +674,21 @@ const styles = StyleSheet.create({
   tierDescription: {
     fontSize: 14,
     lineHeight: 20,
+    marginBottom: 16,
+  },
+  subscribeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  subscribeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   timeRow: {
     flexDirection: 'row',
@@ -571,6 +759,50 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 8,
     fontStyle: 'italic',
+  },
+  extraTimeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  extraTimeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  restoreDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  restoreButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    borderWidth: 2,
+    alignItems: 'center',
+  },
+  restoreButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  devBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 4,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  devBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   unlockDescription: {
     fontSize: 14,

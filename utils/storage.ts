@@ -260,6 +260,7 @@ export const StorageService = {
         const defaultStatus: SubscriptionStatus = {
           tier: 'Free',
           isUnlocked: false,
+          storeSubscriptionActive: false,
         };
         return defaultStatus;
       }
@@ -270,6 +271,7 @@ export const StorageService = {
       return {
         tier: 'Free',
         isUnlocked: false,
+        storeSubscriptionActive: false,
       };
     }
   },
@@ -288,6 +290,7 @@ export const StorageService = {
         tier: 'Subscriber (Unlocked)',
         isUnlocked: true,
         unlockedDate: Date.now(),
+        storeSubscriptionActive: false,
       };
       await this.saveSubscriptionStatus(status);
 
@@ -304,18 +307,26 @@ export const StorageService = {
 
   async deactivateSubscriptionUnlock(): Promise<void> {
     try {
-      const status: SubscriptionStatus = {
-        tier: 'Free',
-        isUnlocked: false,
-      };
-      await this.saveSubscriptionStatus(status);
+      const currentStatus = await this.getSubscriptionStatus();
+      
+      // Only deactivate if not a store subscription
+      if (!currentStatus.storeSubscriptionActive) {
+        const status: SubscriptionStatus = {
+          tier: 'Free',
+          isUnlocked: false,
+          storeSubscriptionActive: false,
+        };
+        await this.saveSubscriptionStatus(status);
 
-      // Remove subscriber monthly pool
-      const recordingTime = await this.getRecordingTime();
-      recordingTime.subscriberMonthly = 0;
-      await this.saveRecordingTime(recordingTime);
+        // Remove subscriber monthly pool
+        const recordingTime = await this.getRecordingTime();
+        recordingTime.subscriberMonthly = 0;
+        await this.saveRecordingTime(recordingTime);
 
-      console.log('Subscription unlock deactivated');
+        console.log('Subscription unlock deactivated');
+      } else {
+        console.log('Cannot deactivate - store subscription is active');
+      }
     } catch (error) {
       console.error('Error deactivating subscription unlock:', error);
     }

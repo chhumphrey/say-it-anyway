@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { SubscriptionTier } from '@/types';
 import { StorageService } from '@/utils/storage';
+import { billingService } from '@/utils/billingService';
 
 interface SubscriptionContextType {
   subscriptionTier: SubscriptionTier;
@@ -23,8 +24,25 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
   const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('Free');
 
   useEffect(() => {
-    loadSubscription();
+    initializeSubscription();
   }, []);
+
+  const initializeSubscription = async () => {
+    try {
+      // Initialize billing service
+      await billingService.initialize();
+      
+      // Check subscription status
+      await billingService.checkSubscriptionStatus();
+      
+      // Load subscription data
+      await loadSubscription();
+    } catch (error) {
+      console.error('Error initializing subscription:', error);
+      // Still load local subscription data even if billing fails
+      await loadSubscription();
+    }
+  };
 
   const loadSubscription = async () => {
     try {
@@ -37,6 +55,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const refreshSubscription = async () => {
+    await billingService.checkSubscriptionStatus();
     await loadSubscription();
   };
 

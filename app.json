@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "Say It Anyway: Grief Journal",
@@ -17,7 +18,13 @@
       "bundleIdentifier": "com.anonymous.Natively",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSMicrophoneUsageDescription": "This app needs access to your microphone to record audio messages for your loved ones."
+        "NSMicrophoneUsageDescription": "This app needs access to your microphone to record audio messages for your loved ones.",
+        "SKAdNetworkItems": [
+          {
+            "SKAdNetworkIdentifier": "cstr6suwn9.skadnetwork"
+          }
+        ],
+        "GADApplicationIdentifier": "ca-app-pub-3940256099942544~1458002511"
       }
     },
     "android": {
@@ -29,7 +36,8 @@
       "package": "com.anonymous.Natively",
       "permissions": [
         "RECORD_AUDIO"
-      ]
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/images/final_quest_240x240.png",
@@ -43,6 +51,13 @@
         "expo-audio",
         {
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone to record audio messages for your loved ones."
+        }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
         }
       ]
     ],

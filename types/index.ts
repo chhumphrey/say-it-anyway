@@ -79,5 +79,7 @@ export type SubscriptionTier = 'Free' | 'Subscriber' | 'Subscriber (Unlocked)';
 export interface SubscriptionStatus {
   tier: SubscriptionTier;
   isUnlocked: boolean; // True if unlocked via access code
-  unlockedDate?: number; // Timestamp when unlocked
+  unlockedDate?: number; // Timestamp when unlocked via access code
+  storeSubscriptionActive?: boolean; // True if store subscription is active
+  subscriptionActivatedDate?: number; // Timestamp when store subscription was activated
 }
