@@ -1,8 +1,20 @@
 
 import { Platform, Alert } from 'react-native';
-import Superwall from 'expo-superwall';
 import { StorageService } from './storage';
 import { BillingConfig } from '@/constants/BillingConfig';
+
+// Conditionally import Superwall - will be undefined in Expo Go
+let Superwall: any = null;
+let isSuperwallAvailable = false;
+
+try {
+  Superwall = require('expo-superwall').default;
+  isSuperwallAvailable = true;
+  console.log('Superwall module loaded successfully');
+} catch (error) {
+  console.warn('Superwall not available - running in Expo Go or module not found. Billing features will be mocked.');
+  isSuperwallAvailable = false;
+}
 
 export interface PurchaseResult {
   success: boolean;
@@ -15,6 +27,12 @@ class BillingService {
   async initialize(): Promise<void> {
     if (this.isInitialized) {
       console.log('Billing service already initialized');
+      return;
+    }
+
+    if (!isSuperwallAvailable) {
+      console.log('Billing service running in mock mode (Expo Go)');
+      this.isInitialized = true;
       return;
     }
 
@@ -36,23 +54,30 @@ class BillingService {
       console.log('Billing service initialized successfully');
     } catch (error) {
       console.error('Error initializing billing service:', error);
-      throw error;
+      // Don't throw - allow app to continue in mock mode
+      this.isInitialized = true;
     }
   }
 
   private setupPurchaseHandlers(): void {
-    // Handle subscription purchases
-    Superwall.setDelegate({
-      handleSuperwallEvent: async (event) => {
-        console.log('Superwall event:', event);
-        
-        if (event.type === 'transaction_complete') {
-          await this.handlePurchaseComplete(event.product);
-        } else if (event.type === 'transaction_restore') {
-          await this.handleRestorePurchases();
-        }
-      },
-    });
+    if (!isSuperwallAvailable || !Superwall) return;
+
+    try {
+      // Handle subscription purchases
+      Superwall.setDelegate({
+        handleSuperwallEvent: async (event: any) => {
+          console.log('Superwall event:', event);
+          
+          if (event.type === 'transaction_complete') {
+            await this.handlePurchaseComplete(event.product);
+          } else if (event.type === 'transaction_restore') {
+            await this.handleRestorePurchases();
+          }
+        },
+      });
+    } catch (error) {
+      console.error('Error setting up purchase handlers:', error);
+    }
   }
 
   private async handlePurchaseComplete(product: any): Promise<void> {
@@ -133,6 +158,16 @@ class BillingService {
         await this.initialize();
       }
 
+      if (!isSuperwallAvailable) {
+        console.log('Mock purchase: Subscription (Expo Go mode)');
+        Alert.alert(
+          'Development Mode',
+          'In-app purchases are not available in Expo Go. Please build a development build to test purchases.\n\nFor now, you can use the Access Code feature in Settings to test subscriber features.',
+          [{ text: 'OK' }]
+        );
+        return { success: false, error: 'Not available in Expo Go' };
+      }
+
       console.log('Initiating subscription purchase...');
 
       const productId = Platform.select({
@@ -158,6 +193,16 @@ class BillingService {
     try {
       if (!this.isInitialized) {
         await this.initialize();
+      }
+
+      if (!isSuperwallAvailable) {
+        console.log('Mock purchase: Extra Time (Expo Go mode)');
+        Alert.alert(
+          'Development Mode',
+          'In-app purchases are not available in Expo Go. Please build a development build to test purchases.\n\nFor now, you can use the Access Code feature in Settings to test subscriber features.',
+          [{ text: 'OK' }]
+        );
+        return { success: false, error: 'Not available in Expo Go' };
       }
 
       console.log('Initiating extra time purchase...');
@@ -187,6 +232,16 @@ class BillingService {
         await this.initialize();
       }
 
+      if (!isSuperwallAvailable) {
+        console.log('Mock restore: Purchases (Expo Go mode)');
+        Alert.alert(
+          'Development Mode',
+          'Purchase restoration is not available in Expo Go. Please build a development build to test this feature.',
+          [{ text: 'OK' }]
+        );
+        return { success: false, error: 'Not available in Expo Go' };
+      }
+
       console.log('Restoring purchases...');
 
       await Superwall.restorePurchases();
@@ -204,6 +259,11 @@ class BillingService {
   private async handleRestorePurchases(): Promise<void> {
     try {
       console.log('Handling restore purchases...');
+
+      if (!isSuperwallAvailable || !Superwall) {
+        console.log('Superwall not available for restore');
+        return;
+      }
 
       // Get subscription status from Superwall
       const subscriptionStatus = await Superwall.getSubscriptionStatus();
@@ -239,6 +299,11 @@ class BillingService {
         await this.initialize();
       }
 
+      if (!isSuperwallAvailable || !Superwall) {
+        console.log('Superwall not available - skipping subscription check');
+        return;
+      }
+
       const subscriptionStatus = await Superwall.getSubscriptionStatus();
       const currentStatus = await StorageService.getSubscriptionStatus();
 
@@ -262,6 +327,11 @@ class BillingService {
     } catch (error) {
       console.error('Error checking subscription status:', error);
     }
+  }
+
+  // Helper method to check if billing is available
+  isBillingAvailable(): boolean {
+    return isSuperwallAvailable;
   }
 }
 

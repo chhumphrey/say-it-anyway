@@ -9,6 +9,7 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '@/contexts/ThemeContext';
@@ -19,10 +20,12 @@ import { formatRecordingTime } from '@/utils/transcription';
 import { SubscriptionTier, RecordingTime } from '@/types';
 import { billingService } from '@/utils/billingService';
 import { BillingConfig } from '@/constants/BillingConfig';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { theme, themeName, setTheme } = useAppTheme();
+  const { isBillingAvailable } = useSubscription();
   const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('Free');
   const [recordingTime, setRecordingTime] = useState<RecordingTime | null>(null);
   const [accessCode, setAccessCode] = useState('');
@@ -39,7 +42,9 @@ export default function SettingsScreen() {
   const initializeBilling = async () => {
     try {
       await billingService.initialize();
-      await billingService.checkSubscriptionStatus();
+      if (isBillingAvailable) {
+        await billingService.checkSubscriptionStatus();
+      }
       await loadSubscriptionData();
     } catch (error) {
       console.error('Error initializing billing:', error);
@@ -74,7 +79,7 @@ export default function SettingsScreen() {
           'Thank you for subscribing! You now have:\n\n• 60 minutes of Recording Time per month\n• No ads\n\nYour subscription will renew automatically each month.',
           [{ text: 'OK' }]
         );
-      } else {
+      } else if (result.error !== 'Not available in Expo Go') {
         Alert.alert(
           'Purchase Failed',
           result.error || 'Could not complete the purchase. Please try again.',
@@ -101,7 +106,7 @@ export default function SettingsScreen() {
           'You now have an additional 60 minutes of Recording Time. This time rolls over and never expires!',
           [{ text: 'OK' }]
         );
-      } else {
+      } else if (result.error !== 'Not available in Expo Go') {
         Alert.alert(
           'Purchase Failed',
           result.error || 'Could not complete the purchase. Please try again.',
@@ -128,7 +133,7 @@ export default function SettingsScreen() {
           'Your purchases have been restored successfully.',
           [{ text: 'OK' }]
         );
-      } else {
+      } else if (result.error !== 'Not available in Expo Go') {
         Alert.alert(
           'Restore Failed',
           result.error || 'Could not restore purchases. Please try again.',
@@ -251,6 +256,27 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Expo Go Warning */}
+        {!isBillingAvailable && (
+          <View style={[styles.expoGoWarning, { backgroundColor: theme.colors.accent + '20', borderColor: theme.colors.accent }]}>
+            <IconSymbol
+              ios_icon_name="exclamationmark.triangle.fill"
+              android_material_icon_name="warning"
+              size={24}
+              color={theme.colors.accent}
+            />
+            <View style={styles.expoGoWarningContent}>
+              <Text style={[styles.expoGoWarningTitle, { color: theme.colors.text }]}>
+                Running in Expo Go
+              </Text>
+              <Text style={[styles.expoGoWarningText, { color: theme.colors.textSecondary }]}>
+                In-app purchases require a Development Build and won&apos;t work in Expo Go. 
+                Use the Access Code feature below to test subscriber features, or build a development build to test real purchases.
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* Subscription Status */}
         <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <View style={styles.sectionHeader}>
@@ -277,9 +303,12 @@ export default function SettingsScreen() {
               </Text>
 
               <TouchableOpacity
-                style={[styles.subscribeButton, { backgroundColor: theme.colors.primary }]}
+                style={[
+                  styles.subscribeButton, 
+                  { backgroundColor: isBillingAvailable ? theme.colors.primary : theme.colors.textSecondary }
+                ]}
                 onPress={handleSubscribe}
-                disabled={isPurchasing}
+                disabled={isPurchasing || !isBillingAvailable}
               >
                 {isPurchasing ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
@@ -292,7 +321,10 @@ export default function SettingsScreen() {
                       color="#FFFFFF"
                     />
                     <Text style={styles.subscribeButtonText}>
-                      Subscribe for ${BillingConfig.products.subscription.price}/month
+                      {isBillingAvailable 
+                        ? `Subscribe for $${BillingConfig.products.subscription.price}/month`
+                        : 'Purchases Not Available in Expo Go'
+                      }
                     </Text>
                   </>
                 )}
@@ -404,9 +436,12 @@ export default function SettingsScreen() {
               {/* Buy Extra Time Button - Only for Subscribers */}
               {isSubscriber && (
                 <TouchableOpacity
-                  style={[styles.extraTimeButton, { backgroundColor: theme.colors.accent }]}
+                  style={[
+                    styles.extraTimeButton, 
+                    { backgroundColor: isBillingAvailable ? theme.colors.accent : theme.colors.textSecondary }
+                  ]}
                   onPress={handleBuyExtraTime}
-                  disabled={isPurchasing}
+                  disabled={isPurchasing || !isBillingAvailable}
                 >
                   {isPurchasing ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
@@ -419,7 +454,10 @@ export default function SettingsScreen() {
                         color="#FFFFFF"
                       />
                       <Text style={styles.extraTimeButtonText}>
-                        Buy Extra Time (${BillingConfig.products.extraTime.price})
+                        {isBillingAvailable
+                          ? `Buy Extra Time ($${BillingConfig.products.extraTime.price})`
+                          : 'Not Available in Expo Go'
+                        }
                       </Text>
                     </>
                   )}
@@ -432,37 +470,39 @@ export default function SettingsScreen() {
         </View>
 
         {/* Restore Purchases */}
-        <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <View style={styles.sectionHeader}>
-            <IconSymbol
-              ios_icon_name="arrow.clockwise.circle.fill"
-              android_material_icon_name="restore"
-              size={24}
-              color={theme.colors.primary}
-            />
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Restore Purchases
-            </Text>
-          </View>
-
-          <Text style={[styles.restoreDescription, { color: theme.colors.textSecondary }]}>
-            If you previously purchased a subscription or extra time on this device or another device, tap below to restore your purchases.
-          </Text>
-
-          <TouchableOpacity
-            style={[styles.restoreButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.primary }]}
-            onPress={handleRestorePurchases}
-            disabled={isRestoring}
-          >
-            {isRestoring ? (
-              <ActivityIndicator size="small" color={theme.colors.primary} />
-            ) : (
-              <Text style={[styles.restoreButtonText, { color: theme.colors.primary }]}>
+        {isBillingAvailable && (
+          <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <View style={styles.sectionHeader}>
+              <IconSymbol
+                ios_icon_name="arrow.clockwise.circle.fill"
+                android_material_icon_name="restore"
+                size={24}
+                color={theme.colors.primary}
+              />
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
                 Restore Purchases
               </Text>
-            )}
-          </TouchableOpacity>
-        </View>
+            </View>
+
+            <Text style={[styles.restoreDescription, { color: theme.colors.textSecondary }]}>
+              If you previously purchased a subscription or extra time on this device or another device, tap below to restore your purchases.
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.restoreButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.primary }]}
+              onPress={handleRestorePurchases}
+              disabled={isRestoring}
+            >
+              {isRestoring ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : (
+                <Text style={[styles.restoreButtonText, { color: theme.colors.primary }]}>
+                  Restore Purchases
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Developer/Test Access Code */}
         <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
@@ -474,13 +514,13 @@ export default function SettingsScreen() {
               color={theme.colors.textSecondary}
             />
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Developer/Test Access Code
+              {isBillingAvailable ? 'Developer/Test Access Code' : 'Access Code (Testing)'}
             </Text>
           </View>
 
           <View style={[styles.devBadge, { backgroundColor: theme.colors.background, borderColor: theme.colors.textSecondary }]}>
             <Text style={[styles.devBadgeText, { color: theme.colors.textSecondary }]}>
-              FOR TESTING ONLY
+              {isBillingAvailable ? 'FOR TESTING ONLY' : 'USE THIS TO TEST FEATURES'}
             </Text>
           </View>
 
@@ -502,7 +542,10 @@ export default function SettingsScreen() {
           ) : (
             <>
               <Text style={[styles.unlockDescription, { color: theme.colors.textSecondary }]}>
-                Enter an access code to unlock Subscriber features for testing or development purposes. This does not affect store billing.
+                {isBillingAvailable 
+                  ? 'Enter an access code to unlock Subscriber features for testing or development purposes. This does not affect store billing.'
+                  : 'Since in-app purchases aren\'t available in Expo Go, use this access code feature to test subscriber functionality. Enter the code to unlock all subscriber features.'
+                }
               </Text>
 
               {!showAccessCodeInput ? (
@@ -649,6 +692,27 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingBottom: 100,
+  },
+  expoGoWarning: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    marginBottom: 20,
+  },
+  expoGoWarningContent: {
+    flex: 1,
+  },
+  expoGoWarningTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  expoGoWarningText: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   section: {
     borderRadius: 12,

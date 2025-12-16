@@ -9,6 +9,7 @@ interface SubscriptionContextType {
   isSubscriber: boolean;
   shouldShowAds: (screenName?: string) => boolean;
   refreshSubscription: () => Promise<void>;
+  isBillingAvailable: boolean;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
@@ -21,6 +22,7 @@ const AD_FREE_SCREENS = [
 
 export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
   const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('Free');
+  const [isBillingAvailable, setIsBillingAvailable] = useState(false);
 
   useEffect(() => {
     initializeSubscription();
@@ -29,11 +31,21 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
   const initializeSubscription = async () => {
     try {
       console.log('Initializing subscription context...');
-      // Initialize billing service
+      
+      // Initialize billing service (will work in mock mode if Superwall unavailable)
       await billingService.initialize();
       
-      // Check subscription status
-      await billingService.checkSubscriptionStatus();
+      // Check if billing is available
+      const billingAvailable = billingService.isBillingAvailable();
+      setIsBillingAvailable(billingAvailable);
+      
+      if (billingAvailable) {
+        console.log('Billing service available - checking subscription status');
+        // Check subscription status
+        await billingService.checkSubscriptionStatus();
+      } else {
+        console.log('Billing service not available (Expo Go mode) - using local data only');
+      }
       
       // Load subscription data
       await loadSubscription();
@@ -56,7 +68,9 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshSubscription = async () => {
     console.log('Refreshing subscription...');
-    await billingService.checkSubscriptionStatus();
+    if (isBillingAvailable) {
+      await billingService.checkSubscriptionStatus();
+    }
     await loadSubscription();
   };
 
@@ -89,6 +103,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
         isSubscriber,
         shouldShowAds,
         refreshSubscription,
+        isBillingAvailable,
       }}
     >
       {children}
