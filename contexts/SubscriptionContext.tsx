@@ -17,7 +17,6 @@ const SubscriptionContext = createContext<SubscriptionContextType | undefined>(u
 const AD_FREE_SCREENS = [
   'support-resources',
   'compose-message',
-  'recipient',
 ];
 
 export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
@@ -29,6 +28,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
 
   const initializeSubscription = async () => {
     try {
+      console.log('Initializing subscription context...');
       // Initialize billing service
       await billingService.initialize();
       
@@ -55,6 +55,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const refreshSubscription = async () => {
+    console.log('Refreshing subscription...');
     await billingService.checkSubscriptionStatus();
     await loadSubscription();
   };
@@ -62,17 +63,22 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
   const isSubscriber = subscriptionTier !== 'Free';
 
   const shouldShowAds = (screenName?: string): boolean => {
+    console.log('shouldShowAds check:', { screenName, isSubscriber, subscriptionTier });
+    
     // Never show ads for subscribers
     if (isSubscriber) {
+      console.log('Not showing ads - user is subscriber');
       return false;
     }
 
     // Never show ads on safety-related or sensitive screens
     if (screenName && AD_FREE_SCREENS.some(screen => screenName.includes(screen))) {
+      console.log('Not showing ads - screen is in AD_FREE_SCREENS');
       return false;
     }
 
     // Show ads for free tier on other screens
+    console.log('Showing ads - free tier on allowed screen');
     return true;
   };
 

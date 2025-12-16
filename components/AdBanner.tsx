@@ -12,10 +12,14 @@ let BannerAdSize: any;
 let TestIds: any;
 
 if (Platform.OS !== 'web') {
-  const GoogleMobileAds = require('react-native-google-mobile-ads');
-  BannerAd = GoogleMobileAds.BannerAd;
-  BannerAdSize = GoogleMobileAds.BannerAdSize;
-  TestIds = GoogleMobileAds.TestIds;
+  try {
+    const GoogleMobileAds = require('react-native-google-mobile-ads');
+    BannerAd = GoogleMobileAds.BannerAd;
+    BannerAdSize = GoogleMobileAds.BannerAdSize;
+    TestIds = GoogleMobileAds.TestIds;
+  } catch (error) {
+    console.error('Failed to load react-native-google-mobile-ads:', error);
+  }
 }
 
 interface AdBannerProps {
@@ -27,13 +31,40 @@ export const AdBanner: React.FC<AdBannerProps> = ({ screenName }) => {
   const { shouldShowAds } = useSubscription();
   const [adError, setAdError] = useState(false);
 
+  console.log('AdBanner render:', { screenName, shouldShow: shouldShowAds(screenName) });
+
   // Don't render if ads shouldn't be shown
   if (!shouldShowAds(screenName)) {
+    console.log('AdBanner: Not showing ads for screen:', screenName);
     return null;
   }
 
   // On web, show fallback promo
   if (Platform.OS === 'web') {
+    console.log('AdBanner: Showing web fallback');
+    return (
+      <View style={[styles.fallbackContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+        <IconSymbol
+          ios_icon_name="megaphone.fill"
+          android_material_icon_name="campaign"
+          size={20}
+          color={theme.colors.textSecondary}
+        />
+        <View style={styles.textContainer}>
+          <Text style={[styles.adLabel, { color: theme.colors.textSecondary }]}>
+            Advertisement
+          </Text>
+          <Text style={[styles.adText, { color: theme.colors.text }]}>
+            Upgrade to remove ads and get 60 minutes of Recording Time per month
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // If BannerAd is not available (failed to load), show fallback
+  if (!BannerAd) {
+    console.log('AdBanner: BannerAd not available, showing fallback');
     return (
       <View style={[styles.fallbackContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
         <IconSymbol
@@ -58,8 +89,10 @@ export const AdBanner: React.FC<AdBannerProps> = ({ screenName }) => {
   const adUnitId = Platform.select({
     ios: BillingConfig.adUnits.banner.ios,
     android: BillingConfig.adUnits.banner.android,
-    default: TestIds.BANNER,
+    default: TestIds?.BANNER || 'ca-app-pub-3940256099942544/6300978111',
   });
+
+  console.log('AdBanner: Rendering native ad with unit ID:', adUnitId);
 
   const handleAdError = (error: any) => {
     console.error('Ad failed to load:', error);
@@ -73,6 +106,7 @@ export const AdBanner: React.FC<AdBannerProps> = ({ screenName }) => {
 
   // If ad failed to load, show fallback promo
   if (adError) {
+    console.log('AdBanner: Ad error, showing fallback');
     return (
       <View style={[styles.fallbackContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
         <IconSymbol
@@ -122,6 +156,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     marginVertical: 12,
+    marginHorizontal: 20,
   },
   textContainer: {
     flex: 1,

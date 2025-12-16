@@ -30,34 +30,57 @@ export default function RecipientDetailScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [showHidden, setShowHidden] = useState(false);
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(true);
+
+  console.log('RecipientDetailScreen render:', { id, recipientId: recipient?.id, messageCount: messages.length });
 
   useEffect(() => {
+    console.log('RecipientDetailScreen useEffect triggered');
     loadData();
   }, [id]);
 
   // Use useFocusEffect to reload data when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
+      console.log('RecipientDetailScreen focused');
       loadData();
     }, [id])
   );
 
   const loadData = async () => {
-    const recipients = await StorageService.getRecipients();
-    const found = recipients.find(r => r.id === id);
-    setRecipient(found || null);
+    try {
+      console.log('Loading data for recipient:', id);
+      setIsLoading(true);
+      
+      const recipients = await StorageService.getRecipients();
+      console.log('Total recipients loaded:', recipients.length);
+      
+      const found = recipients.find(r => r.id === id);
+      console.log('Found recipient:', found ? found.name : 'NOT FOUND');
+      setRecipient(found || null);
 
-    const allMessages = await StorageService.getMessages(id as string);
-    const sorted = allMessages.sort((a, b) => b.timestamp - a.timestamp);
-    setMessages(sorted);
+      if (found) {
+        const allMessages = await StorageService.getMessages(id as string);
+        console.log('Messages loaded:', allMessages.length);
+        const sorted = allMessages.sort((a, b) => b.timestamp - a.timestamp);
+        setMessages(sorted);
+      }
+      
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setIsLoading(false);
+    }
   };
 
   const toggleHidden = async (messageId: string, currentHidden: boolean) => {
+    console.log('Toggling hidden for message:', messageId);
     await StorageService.updateMessage(messageId, { isHidden: !currentHidden });
     loadData();
   };
 
   const toggleExpanded = (messageId: string) => {
+    console.log('Toggling expanded for message:', messageId);
     setExpandedMessages(prev => {
       const newSet = new Set(prev);
       if (newSet.has(messageId)) {
@@ -90,15 +113,64 @@ export default function RecipientDetailScreen() {
     ? messages 
     : messages.filter(m => !m.isHidden);
 
-  if (!recipient) {
+  console.log('Visible messages:', visibleMessages.length);
+
+  if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <Text style={[styles.errorText, { color: theme.colors.text }]}>
-          Recipient not found
-        </Text>
+        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <IconSymbol
+              ios_icon_name="chevron.left"
+              android_material_icon_name="arrow-back"
+              size={28}
+              color={theme.colors.text}
+            />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Loading...</Text>
+          <View style={styles.editButton} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+            Loading recipient details...
+          </Text>
+        </View>
       </View>
     );
   }
+
+  if (!recipient) {
+    console.log('Recipient not found, showing error');
+    return (
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <IconSymbol
+              ios_icon_name="chevron.left"
+              android_material_icon_name="arrow-back"
+              size={28}
+              color={theme.colors.text}
+            />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Error</Text>
+          <View style={styles.editButton} />
+        </View>
+        <View style={styles.errorContainer}>
+          <Text style={[styles.errorText, { color: theme.colors.text }]}>
+            Recipient not found
+          </Text>
+          <TouchableOpacity
+            style={[styles.errorButton, { backgroundColor: theme.colors.primary }]}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.errorButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  console.log('Rendering recipient screen for:', recipient.name);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -129,7 +201,7 @@ export default function RecipientDetailScreen() {
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Ad Banner at top - only shown for free tier */}
-        <AdBanner screenName="recipient" />
+        <AdBanner screenName="recipient-detail" />
 
         <View style={styles.recipientInfo}>
           {recipient.photoUri ? (
@@ -264,25 +336,21 @@ function MessageCard({
   const handleFullTextLayout = (event: LayoutChangeEvent) => {
     const { height } = event.nativeEvent.layout;
     setTextHeight(height);
-    console.log('Full text height:', height);
   };
 
   const handleTruncatedTextLayout = (event: LayoutChangeEvent) => {
     const { height } = event.nativeEvent.layout;
     setTruncatedTextHeight(height);
-    console.log('Truncated text height:', height);
   };
 
   const handleFullTranscriptLayout = (event: LayoutChangeEvent) => {
     const { height } = event.nativeEvent.layout;
     setTranscriptHeight(height);
-    console.log('Full transcript height:', height);
   };
 
   const handleTruncatedTranscriptLayout = (event: LayoutChangeEvent) => {
     const { height } = event.nativeEvent.layout;
     setTruncatedTranscriptHeight(height);
-    console.log('Truncated transcript height:', height);
   };
 
   // Text needs truncation if full height is greater than truncated height
@@ -530,6 +598,35 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 40,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  errorText: {
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  errorButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  errorButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   recipientInfo: {
     alignItems: 'center',
     paddingVertical: 24,
@@ -697,10 +794,5 @@ const styles = StyleSheet.create({
   transcriptText: {
     fontSize: 14,
     lineHeight: 20,
-  },
-  errorText: {
-    fontSize: 18,
-    textAlign: 'center',
-    marginTop: 100,
   },
 });
