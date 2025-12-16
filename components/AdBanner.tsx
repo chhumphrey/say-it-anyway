@@ -1,11 +1,22 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
-import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { IconSymbol } from './IconSymbol';
 import { BillingConfig } from '@/constants/BillingConfig';
+
+// Conditionally import react-native-google-mobile-ads only on native platforms
+let BannerAd: any;
+let BannerAdSize: any;
+let TestIds: any;
+
+if (Platform.OS !== 'web') {
+  const GoogleMobileAds = require('react-native-google-mobile-ads');
+  BannerAd = GoogleMobileAds.BannerAd;
+  BannerAdSize = GoogleMobileAds.BannerAdSize;
+  TestIds = GoogleMobileAds.TestIds;
+}
 
 interface AdBannerProps {
   screenName?: string;
@@ -19,6 +30,28 @@ export const AdBanner: React.FC<AdBannerProps> = ({ screenName }) => {
   // Don't render if ads shouldn't be shown
   if (!shouldShowAds(screenName)) {
     return null;
+  }
+
+  // On web, show fallback promo
+  if (Platform.OS === 'web') {
+    return (
+      <View style={[styles.fallbackContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+        <IconSymbol
+          ios_icon_name="megaphone.fill"
+          android_material_icon_name="campaign"
+          size={20}
+          color={theme.colors.textSecondary}
+        />
+        <View style={styles.textContainer}>
+          <Text style={[styles.adLabel, { color: theme.colors.textSecondary }]}>
+            Advertisement
+          </Text>
+          <Text style={[styles.adText, { color: theme.colors.text }]}>
+            Upgrade to remove ads and get 60 minutes of Recording Time per month
+          </Text>
+        </View>
+      </View>
+    );
   }
 
   // Get the appropriate ad unit ID for the platform
