@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  LayoutChangeEvent,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
@@ -214,9 +215,9 @@ export default function RecipientDetailScreen() {
             </Text>
           </View>
         ) : (
-          visibleMessages.map((message) => (
+          visibleMessages.map((message, index) => (
             <MessageCard
-              key={message.id}
+              key={`${message.id}-${index}`}
               message={message}
               theme={theme}
               isExpanded={expandedMessages.has(message.id)}
@@ -251,27 +252,38 @@ function MessageCard({
   formatDate,
   formatDuration,
 }: MessageCardProps) {
-  const [textLineCount, setTextLineCount] = useState(0);
-  const [transcriptLineCount, setTranscriptLineCount] = useState(0);
+  const [textHeight, setTextHeight] = useState(0);
+  const [truncatedTextHeight, setTruncatedTextHeight] = useState(0);
+  const [transcriptHeight, setTranscriptHeight] = useState(0);
+  const [truncatedTranscriptHeight, setTruncatedTranscriptHeight] = useState(0);
 
-  const handleTextLayout = (e: any) => {
-    const lines = e.nativeEvent.lines;
-    if (lines && lines.length) {
-      setTextLineCount(lines.length);
-      console.log('Text line count:', lines.length);
-    }
+  const handleFullTextLayout = (event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    setTextHeight(height);
+    console.log('Full text height:', height);
   };
 
-  const handleTranscriptLayout = (e: any) => {
-    const lines = e.nativeEvent.lines;
-    if (lines && lines.length) {
-      setTranscriptLineCount(lines.length);
-      console.log('Transcript line count:', lines.length);
-    }
+  const handleTruncatedTextLayout = (event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    setTruncatedTextHeight(height);
+    console.log('Truncated text height:', height);
   };
 
-  const textNeedsTruncation = textLineCount > 4;
-  const transcriptNeedsTruncation = transcriptLineCount > 4;
+  const handleFullTranscriptLayout = (event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    setTranscriptHeight(height);
+    console.log('Full transcript height:', height);
+  };
+
+  const handleTruncatedTranscriptLayout = (event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    setTruncatedTranscriptHeight(height);
+    console.log('Truncated transcript height:', height);
+  };
+
+  // Text needs truncation if full height is greater than truncated height
+  const textNeedsTruncation = textHeight > truncatedTextHeight && truncatedTextHeight > 0;
+  const transcriptNeedsTruncation = transcriptHeight > truncatedTranscriptHeight && truncatedTranscriptHeight > 0;
 
   return (
     <View
@@ -317,13 +329,35 @@ function MessageCard({
 
       {message.textContent && (
         <View>
+          {/* Hidden full text for measurement */}
+          <View style={styles.hiddenMeasurement}>
+            <Text
+              style={[styles.messageText, { color: theme.colors.text }]}
+              onLayout={handleFullTextLayout}
+            >
+              {message.textContent}
+            </Text>
+          </View>
+
+          {/* Hidden truncated text for measurement */}
+          <View style={styles.hiddenMeasurement}>
+            <Text
+              style={[styles.messageText, { color: theme.colors.text }]}
+              numberOfLines={4}
+              onLayout={handleTruncatedTextLayout}
+            >
+              {message.textContent}
+            </Text>
+          </View>
+
+          {/* Visible text */}
           <Text
             style={[styles.messageText, { color: theme.colors.text }]}
             numberOfLines={isExpanded ? undefined : 4}
-            onTextLayout={handleTextLayout}
           >
             {message.textContent}
           </Text>
+
           {textNeedsTruncation && (
             <TouchableOpacity onPress={onToggleExpanded} style={styles.showAllButton}>
               <Text style={[styles.showAllText, { color: theme.colors.primary }]}>
@@ -339,13 +373,36 @@ function MessageCard({
           <Text style={[styles.transcriptLabel, { color: theme.colors.textSecondary }]}>
             Transcript:
           </Text>
+
+          {/* Hidden full transcript for measurement */}
+          <View style={styles.hiddenMeasurement}>
+            <Text
+              style={[styles.transcriptText, { color: theme.colors.text }]}
+              onLayout={handleFullTranscriptLayout}
+            >
+              {message.transcript}
+            </Text>
+          </View>
+
+          {/* Hidden truncated transcript for measurement */}
+          <View style={styles.hiddenMeasurement}>
+            <Text
+              style={[styles.transcriptText, { color: theme.colors.text }]}
+              numberOfLines={4}
+              onLayout={handleTruncatedTranscriptLayout}
+            >
+              {message.transcript}
+            </Text>
+          </View>
+
+          {/* Visible transcript */}
           <Text
             style={[styles.transcriptText, { color: theme.colors.text }]}
             numberOfLines={isExpanded ? undefined : 4}
-            onTextLayout={handleTranscriptLayout}
           >
             {message.transcript}
           </Text>
+
           {transcriptNeedsTruncation && (
             <TouchableOpacity onPress={onToggleExpanded} style={styles.showAllButton}>
               <Text style={[styles.showAllText, { color: theme.colors.primary }]}>
@@ -572,6 +629,11 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: 16,
     lineHeight: 24,
+  },
+  hiddenMeasurement: {
+    position: 'absolute',
+    opacity: 0,
+    zIndex: -1,
   },
   showAllButton: {
     marginTop: 8,
