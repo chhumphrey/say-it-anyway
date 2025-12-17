@@ -1,8 +1,24 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { Platform } from 'react-native';
 import { SubscriptionTier } from '@/types';
 import { StorageService } from '@/utils/storage';
 import { billingService } from '@/utils/billingService';
+
+// Conditionally import Superwall hooks
+let useUser: any = null;
+let useSuperwallEvents: any = null;
+let isSuperwallAvailable = false;
+
+try {
+  const SuperwallModule = require('expo-superwall');
+  useUser = SuperwallModule.useUser;
+  useSuperwallEvents = SuperwallModule.useSuperwallEvents;
+  isSuperwallAvailable = Platform.OS !== 'web';
+  console.log('Superwall hooks loaded successfully');
+} catch (error) {
+  console.log('Superwall hooks not available - running in Expo Go or web');
+}
 
 interface SubscriptionContextType {
   subscriptionTier: SubscriptionTier;
@@ -20,19 +36,88 @@ const AD_FREE_SCREENS = [
   'compose-message',
 ];
 
+// Separate component to handle Superwall events
+// This ensures hooks are always called at the top level
+function SuperwallEventHandler() {
+  // Only set up event listeners if Superwall is available
+  if (!isSuperwallAvailable || !useSuperwallEvents) {
+    return null;
+  }
+
+  // Call the hook unconditionally
+  useSuperwallEvents({
+    onSubscriptionStatusChange: async (status: any) => {
+      console.log('Superwall subscription status changed:', status);
+      
+      try {
+        if (status.status === 'ACTIVE') {
+          await billingService.activateSubscription();
+        } else {
+          await billingService.deactivateSubscription();
+        }
+      } catch (error) {
+        console.error('Error handling subscription status change:', error);
+      }
+    },
+    onSuperwallEvent: (eventInfo: any) => {
+      console.log('Superwall event:', eventInfo.event?.event, eventInfo.params);
+    },
+  });
+
+  return null;
+}
+
 export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
   const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('Free');
   const [isBillingAvailable, setIsBillingAvailable] = useState(false);
+
+  // Always call useUser hook, even if Superwall is not available
+  // This is safe because we check availability before calling
+  const superwallUser = isSuperwallAvailable && useUser ? useUser() : null;
 
   useEffect(() => {
     initializeSubscription();
   }, []);
 
+  // Sync with Superwall subscription status when it changes
+  useEffect(() => {
+    if (superwallUser?.subscriptionStatus) {
+      const status = superwallUser.subscriptionStatus;
+      console.log('Superwall subscription status from useUser:', status);
+      
+      syncSuperwallStatus(status);
+    }
+  }, [superwallUser?.subscriptionStatus]);
+
+  const syncSuperwallStatus = async (status: any) => {
+    try {
+      const currentStatus = await StorageService.getSubscriptionStatus();
+      
+      // Don't override if unlocked via access code
+      if (currentStatus.isUnlocked) {
+        console.log('Subscription unlocked via access code - not syncing with Superwall');
+        return;
+      }
+
+      if (status.status === 'ACTIVE' && currentStatus.tier === 'Free') {
+        console.log('Activating subscription from Superwall status');
+        await billingService.activateSubscription();
+        await loadSubscription();
+      } else if (status.status !== 'ACTIVE' && currentStatus.tier === 'Subscriber') {
+        console.log('Deactivating subscription from Superwall status');
+        await billingService.deactivateSubscription();
+        await loadSubscription();
+      }
+    } catch (error) {
+      console.error('Error syncing Superwall status:', error);
+    }
+  };
+
   const initializeSubscription = async () => {
     try {
       console.log('Initializing subscription context...');
       
-      // Initialize billing service (will work in mock mode if Superwall unavailable)
+      // Initialize billing service
       await billingService.initialize();
       
       // Check if billing is available
@@ -40,11 +125,9 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
       setIsBillingAvailable(billingAvailable);
       
       if (billingAvailable) {
-        console.log('Billing service available - checking subscription status');
-        // Check subscription status
-        await billingService.checkSubscriptionStatus();
+        console.log('Billing service available - Superwall will handle subscription status');
       } else {
-        console.log('Billing service not available (Expo Go mode) - using local data only');
+        console.log('Billing service not available (Expo Go or web) - using local data only');
       }
       
       // Load subscription data
@@ -68,9 +151,17 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshSubscription = async () => {
     console.log('Refreshing subscription...');
-    if (isBillingAvailable) {
-      await billingService.checkSubscriptionStatus();
+    
+    // If Superwall is available, refresh from there
+    if (superwallUser?.refresh) {
+      try {
+        await superwallUser.refresh();
+        console.log('Refreshed subscription from Superwall');
+      } catch (error) {
+        console.error('Error refreshing from Superwall:', error);
+      }
     }
+    
     await loadSubscription();
   };
 
@@ -106,6 +197,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
         isBillingAvailable,
       }}
     >
+      <SuperwallEventHandler />
       {children}
     </SubscriptionContext.Provider>
   );

@@ -22,34 +22,88 @@ import { billingService } from '@/utils/billingService';
 import { BillingConfig } from '@/constants/BillingConfig';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 
+// Conditionally import Superwall hooks
+let usePlacement: any = null;
+let useUser: any = null;
+let isSuperwallAvailable = false;
+
+try {
+  const SuperwallModule = require('expo-superwall');
+  usePlacement = SuperwallModule.usePlacement;
+  useUser = SuperwallModule.useUser;
+  isSuperwallAvailable = Platform.OS !== 'web';
+  console.log('Superwall hooks loaded in settings');
+} catch (error) {
+  console.log('Superwall hooks not available in settings');
+}
+
+// Wrapper component for Superwall hooks to ensure they're always called
+function SuperwallHooksWrapper({ children }: { children: (hooks: any) => React.ReactNode }) {
+  // Always call hooks unconditionally
+  const superwallUser = isSuperwallAvailable && useUser ? useUser() : null;
+  
+  const subscriptionPlacement = isSuperwallAvailable && usePlacement ? usePlacement({
+    onPresent: (info: any) => {
+      console.log('Subscription paywall presented:', info);
+    },
+    onDismiss: async (info: any, result: any) => {
+      console.log('Subscription paywall dismissed:', info, result);
+      
+      if (result.state === 'purchased') {
+        await billingService.activateSubscription();
+        
+        Alert.alert(
+          'Subscription Activated!',
+          'Thank you for subscribing! You now have:\n\n• 60 minutes of Recording Time per month\n• No ads\n\nYour subscription will renew automatically each month.',
+          [{ text: 'OK' }]
+        );
+      }
+    },
+    onError: (error: string) => {
+      console.error('Subscription paywall error:', error);
+      Alert.alert('Error', 'Could not show subscription options. Please try again.');
+    },
+  }) : null;
+
+  const extraTimePlacement = isSuperwallAvailable && usePlacement ? usePlacement({
+    onPresent: (info: any) => {
+      console.log('Extra time paywall presented:', info);
+    },
+    onDismiss: async (info: any, result: any) => {
+      console.log('Extra time paywall dismissed:', info, result);
+      
+      if (result.state === 'purchased') {
+        await billingService.addExtraRecordingTime();
+        
+        Alert.alert(
+          'Extra Time Added!',
+          'You now have an additional 60 minutes of Recording Time. This time rolls over and never expires!',
+          [{ text: 'OK' }]
+        );
+      }
+    },
+    onError: (error: string) => {
+      console.error('Extra time paywall error:', error);
+      Alert.alert('Error', 'Could not show purchase options. Please try again.');
+    },
+  }) : null;
+
+  return <>{children({ superwallUser, subscriptionPlacement, extraTimePlacement })}</>;
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { theme, themeName, setTheme } = useAppTheme();
-  const { isBillingAvailable } = useSubscription();
+  const { isBillingAvailable, refreshSubscription } = useSubscription();
   const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('Free');
   const [recordingTime, setRecordingTime] = useState<RecordingTime | null>(null);
   const [accessCode, setAccessCode] = useState('');
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [showAccessCodeInput, setShowAccessCodeInput] = useState(false);
-  const [isPurchasing, setIsPurchasing] = useState(false);
-  const [isRestoring, setIsRestoring] = useState(false);
 
   useEffect(() => {
     loadSubscriptionData();
-    initializeBilling();
   }, []);
-
-  const initializeBilling = async () => {
-    try {
-      await billingService.initialize();
-      if (isBillingAvailable) {
-        await billingService.checkSubscriptionStatus();
-      }
-      await loadSubscriptionData();
-    } catch (error) {
-      console.error('Error initializing billing:', error);
-    }
-  };
 
   const loadSubscriptionData = async () => {
     try {
@@ -67,84 +121,99 @@ export default function SettingsScreen() {
     setTheme(newTheme);
   };
 
-  const handleSubscribe = async () => {
-    setIsPurchasing(true);
+  const handleSubscribe = async (subscriptionPlacement: any) => {
+    if (!isBillingAvailable) {
+      Alert.alert(
+        'Development Mode',
+        'In-app purchases are not available in Expo Go. Please build a development build to test purchases.\n\nFor now, you can use the Access Code feature below to test subscriber features.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    if (!subscriptionPlacement) {
+      Alert.alert('Error', 'Subscription system not initialized. Please try again.');
+      return;
+    }
+
     try {
-      const result = await billingService.purchaseSubscription();
-      
-      if (result.success) {
-        await loadSubscriptionData();
-        Alert.alert(
-          'Subscription Activated!',
-          'Thank you for subscribing! You now have:\n\n• 60 minutes of Recording Time per month\n• No ads\n\nYour subscription will renew automatically each month.',
-          [{ text: 'OK' }]
-        );
-      } else if (result.error !== 'Not available in Expo Go') {
-        Alert.alert(
-          'Purchase Failed',
-          result.error || 'Could not complete the purchase. Please try again.',
-          [{ text: 'OK' }]
-        );
-      }
+      console.log('Triggering subscription placement...');
+      await subscriptionPlacement.registerPlacement({
+        placement: BillingConfig.placements.subscription,
+        feature: async () => {
+          // User already has access or successfully purchased
+          console.log('User has subscription access');
+          await billingService.activateSubscription();
+          await loadSubscriptionData();
+        },
+      });
     } catch (error) {
-      console.error('Error subscribing:', error);
-      Alert.alert('Error', 'Could not complete the purchase. Please try again.');
-    } finally {
-      setIsPurchasing(false);
+      console.error('Error showing subscription:', error);
+      Alert.alert('Error', 'Could not show subscription options. Please try again.');
     }
   };
 
-  const handleBuyExtraTime = async () => {
-    setIsPurchasing(true);
+  const handleBuyExtraTime = async (extraTimePlacement: any) => {
+    if (!isBillingAvailable) {
+      Alert.alert(
+        'Development Mode',
+        'In-app purchases are not available in Expo Go. Please build a development build to test purchases.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    if (!extraTimePlacement) {
+      Alert.alert('Error', 'Purchase system not initialized. Please try again.');
+      return;
+    }
+
     try {
-      const result = await billingService.purchaseExtraTime();
-      
-      if (result.success) {
-        await loadSubscriptionData();
-        Alert.alert(
-          'Extra Time Added!',
-          'You now have an additional 60 minutes of Recording Time. This time rolls over and never expires!',
-          [{ text: 'OK' }]
-        );
-      } else if (result.error !== 'Not available in Expo Go') {
-        Alert.alert(
-          'Purchase Failed',
-          result.error || 'Could not complete the purchase. Please try again.',
-          [{ text: 'OK' }]
-        );
-      }
+      console.log('Triggering extra time placement...');
+      await extraTimePlacement.registerPlacement({
+        placement: BillingConfig.placements.extraTime,
+        feature: async () => {
+          // User successfully purchased
+          console.log('User purchased extra time');
+          await billingService.addExtraRecordingTime();
+          await loadSubscriptionData();
+        },
+      });
     } catch (error) {
-      console.error('Error buying extra time:', error);
-      Alert.alert('Error', 'Could not complete the purchase. Please try again.');
-    } finally {
-      setIsPurchasing(false);
+      console.error('Error showing extra time purchase:', error);
+      Alert.alert('Error', 'Could not show purchase options. Please try again.');
     }
   };
 
-  const handleRestorePurchases = async () => {
-    setIsRestoring(true);
+  const handleRestorePurchases = async (superwallUser: any) => {
+    if (!isBillingAvailable) {
+      Alert.alert(
+        'Development Mode',
+        'Purchase restoration is not available in Expo Go. Please build a development build to test this feature.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    if (!superwallUser) {
+      Alert.alert('Error', 'Subscription system not initialized. Please try again.');
+      return;
+    }
+
     try {
-      const result = await billingService.restorePurchases();
+      console.log('Refreshing subscription status from Superwall...');
+      await superwallUser.refresh();
+      await refreshSubscription();
+      await loadSubscriptionData();
       
-      if (result.success) {
-        await loadSubscriptionData();
-        Alert.alert(
-          'Purchases Restored',
-          'Your purchases have been restored successfully.',
-          [{ text: 'OK' }]
-        );
-      } else if (result.error !== 'Not available in Expo Go') {
-        Alert.alert(
-          'Restore Failed',
-          result.error || 'Could not restore purchases. Please try again.',
-          [{ text: 'OK' }]
-        );
-      }
+      Alert.alert(
+        'Purchases Restored',
+        'Your purchases have been restored successfully.',
+        [{ text: 'OK' }]
+      );
     } catch (error) {
       console.error('Error restoring purchases:', error);
       Alert.alert('Error', 'Could not restore purchases. Please try again.');
-    } finally {
-      setIsRestoring(false);
     }
   };
 
@@ -164,6 +233,7 @@ export default function SettingsScreen() {
         setAccessCode('');
         setShowAccessCodeInput(false);
         await loadSubscriptionData();
+        await refreshSubscription();
         
         Alert.alert(
           'Subscription Unlocked!',
@@ -198,6 +268,7 @@ export default function SettingsScreen() {
             try {
               await StorageService.deactivateSubscriptionUnlock();
               await loadSubscriptionData();
+              await refreshSubscription();
               
               Alert.alert(
                 'Subscription Deactivated',
@@ -239,81 +310,79 @@ export default function SettingsScreen() {
   const isSubscriber = subscriptionTier !== 'Free';
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <IconSymbol
-            ios_icon_name="chevron.left"
-            android_material_icon_name="arrow-back"
-            size={28}
-            color={theme.colors.text}
-          />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          Settings
-        </Text>
-        <View style={{ width: 28 }} />
-      </View>
-
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Expo Go Warning */}
-        {!isBillingAvailable && (
-          <View style={[styles.expoGoWarning, { backgroundColor: theme.colors.accent + '20', borderColor: theme.colors.accent }]}>
-            <IconSymbol
-              ios_icon_name="exclamationmark.triangle.fill"
-              android_material_icon_name="warning"
-              size={24}
-              color={theme.colors.accent}
-            />
-            <View style={styles.expoGoWarningContent}>
-              <Text style={[styles.expoGoWarningTitle, { color: theme.colors.text }]}>
-                Running in Expo Go
-              </Text>
-              <Text style={[styles.expoGoWarningText, { color: theme.colors.textSecondary }]}>
-                In-app purchases require a Development Build and won&apos;t work in Expo Go. 
-                Use the Access Code feature below to test subscriber features, or build a development build to test real purchases.
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Subscription Status */}
-        <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <View style={styles.sectionHeader}>
-            <IconSymbol
-              ios_icon_name="star.fill"
-              android_material_icon_name="star"
-              size={24}
-              color={subscriptionTier === 'Free' ? theme.colors.textSecondary : theme.colors.accent}
-            />
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Subscription Status
+    <SuperwallHooksWrapper>
+      {({ superwallUser, subscriptionPlacement, extraTimePlacement }) => (
+        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+          <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <IconSymbol
+                ios_icon_name="chevron.left"
+                android_material_icon_name="arrow-back"
+                size={28}
+                color={theme.colors.text}
+              />
+            </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+              Settings
             </Text>
+            <View style={{ width: 28 }} />
           </View>
-          
-          <Text style={[styles.tierText, { color: theme.colors.primary }]}>
-            Current Tier: {subscriptionTier}
-          </Text>
 
-          {subscriptionTier === 'Free' && (
-            <>
-              <Text style={[styles.tierDescription, { color: theme.colors.textSecondary }]}>
-                • 5 minutes of Recording Time per month{'\n'}
-                • Ads shown on some screens
+          <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+            {/* Expo Go Warning */}
+            {!isBillingAvailable && (
+              <View style={[styles.expoGoWarning, { backgroundColor: theme.colors.accent + '20', borderColor: theme.colors.accent }]}>
+                <IconSymbol
+                  ios_icon_name="exclamationmark.triangle.fill"
+                  android_material_icon_name="warning"
+                  size={24}
+                  color={theme.colors.accent}
+                />
+                <View style={styles.expoGoWarningContent}>
+                  <Text style={[styles.expoGoWarningTitle, { color: theme.colors.text }]}>
+                    Running in {Platform.OS === 'web' ? 'Web Mode' : 'Expo Go'}
+                  </Text>
+                  <Text style={[styles.expoGoWarningText, { color: theme.colors.textSecondary }]}>
+                    In-app purchases require a Development Build and won&apos;t work in {Platform.OS === 'web' ? 'web mode' : 'Expo Go'}. 
+                    Use the Access Code feature below to test subscriber features, or build a development build to test real purchases.
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Subscription Status */}
+            <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+              <View style={styles.sectionHeader}>
+                <IconSymbol
+                  ios_icon_name="star.fill"
+                  android_material_icon_name="star"
+                  size={24}
+                  color={subscriptionTier === 'Free' ? theme.colors.textSecondary : theme.colors.accent}
+                />
+                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                  Subscription Status
+                </Text>
+              </View>
+              
+              <Text style={[styles.tierText, { color: theme.colors.primary }]}>
+                Current Tier: {subscriptionTier}
               </Text>
 
-              <TouchableOpacity
-                style={[
-                  styles.subscribeButton, 
-                  { backgroundColor: isBillingAvailable ? theme.colors.primary : theme.colors.textSecondary }
-                ]}
-                onPress={handleSubscribe}
-                disabled={isPurchasing || !isBillingAvailable}
-              >
-                {isPurchasing ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
+              {subscriptionTier === 'Free' && (
+                <>
+                  <Text style={[styles.tierDescription, { color: theme.colors.textSecondary }]}>
+                    • 5 minutes of Recording Time per month{'\n'}
+                    • Ads shown on some screens
+                  </Text>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.subscribeButton, 
+                      { backgroundColor: isBillingAvailable ? theme.colors.primary : theme.colors.textSecondary }
+                    ]}
+                    onPress={() => handleSubscribe(subscriptionPlacement)}
+                    disabled={!isBillingAvailable}
+                  >
                     <IconSymbol
                       ios_icon_name="star.fill"
                       android_material_icon_name="star"
@@ -323,130 +392,124 @@ export default function SettingsScreen() {
                     <Text style={styles.subscribeButtonText}>
                       {isBillingAvailable 
                         ? `Subscribe for $${BillingConfig.products.subscription.price}/month`
-                        : 'Purchases Not Available in Expo Go'
+                        : 'Purchases Not Available'
                       }
                     </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </>
-          )}
-
-          {subscriptionTier !== 'Free' && (
-            <Text style={[styles.tierDescription, { color: theme.colors.textSecondary }]}>
-              • 60 minutes of Recording Time per month{'\n'}
-              • No ads
-            </Text>
-          )}
-        </View>
-
-        {/* Recording Time */}
-        <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <View style={styles.sectionHeader}>
-            <IconSymbol
-              ios_icon_name="clock.fill"
-              android_material_icon_name="schedule"
-              size={24}
-              color={isLowOnTime ? theme.colors.accent : theme.colors.primary}
-            />
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Recording Time
-            </Text>
-          </View>
-
-          {recordingTime ? (
-            <>
-              <View style={styles.timeRow}>
-                <Text style={[styles.timeLabel, { color: theme.colors.text }]}>
-                  Total Available:
-                </Text>
-                <Text style={[styles.timeValue, { color: theme.colors.primary }]}>
-                  {formatRecordingTime(totalTime)}
-                </Text>
-              </View>
-
-              {isLowOnTime && (
-                <View style={[styles.warningBox, { backgroundColor: theme.colors.background, borderColor: theme.colors.accent }]}>
-                  <IconSymbol
-                    ios_icon_name="exclamationmark.triangle.fill"
-                    android_material_icon_name="warning"
-                    size={18}
-                    color={theme.colors.accent}
-                  />
-                  <Text style={[styles.warningText, { color: theme.colors.text }]}>
-                    You&apos;re running low on Recording Time. Consider upgrading to Subscriber for more time.
-                  </Text>
-                </View>
+                  </TouchableOpacity>
+                </>
               )}
 
-              <View style={styles.poolsContainer}>
-                <Text style={[styles.poolsTitle, { color: theme.colors.textSecondary }]}>
-                  Available Pools:
+              {subscriptionTier !== 'Free' && (
+                <Text style={[styles.tierDescription, { color: theme.colors.textSecondary }]}>
+                  • 60 minutes of Recording Time per month{'\n'}
+                  • No ads
                 </Text>
+              )}
+            </View>
 
-                <View style={styles.poolRow}>
-                  <Text style={[styles.poolLabel, { color: theme.colors.text }]}>
-                    Free Monthly:
-                  </Text>
-                  <Text style={[styles.poolValue, { color: theme.colors.textSecondary }]}>
-                    {formatRecordingTime(recordingTime.freeMonthly)}
-                  </Text>
-                </View>
-
-                {subscriptionTier !== 'Free' && (
-                  <View style={styles.poolRow}>
-                    <Text style={[styles.poolLabel, { color: theme.colors.text }]}>
-                      Subscriber Monthly:
-                    </Text>
-                    <Text style={[styles.poolValue, { color: theme.colors.textSecondary }]}>
-                      {formatRecordingTime(recordingTime.subscriberMonthly)}
-                    </Text>
-                  </View>
-                )}
-
-                {recordingTime.purchasedExtra > 0 && (
-                  <View style={styles.poolRow}>
-                    <Text style={[styles.poolLabel, { color: theme.colors.text }]}>
-                      Purchased Extra:
-                    </Text>
-                    <Text style={[styles.poolValue, { color: theme.colors.textSecondary }]}>
-                      {formatRecordingTime(recordingTime.purchasedExtra)}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              <View style={[styles.infoBox, { backgroundColor: theme.colors.background }]}>
+            {/* Recording Time */}
+            <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+              <View style={styles.sectionHeader}>
                 <IconSymbol
-                  ios_icon_name="info.circle"
-                  android_material_icon_name="info"
-                  size={16}
-                  color={theme.colors.textSecondary}
+                  ios_icon_name="clock.fill"
+                  android_material_icon_name="schedule"
+                  size={24}
+                  color={isLowOnTime ? theme.colors.accent : theme.colors.primary}
                 />
-                <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-                  Next pool to be used: {nextPool.poolName}
-                  {nextPool.available > 0 && ` (${formatRecordingTime(nextPool.available)})`}
+                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                  Recording Time
                 </Text>
               </View>
 
-              <Text style={[styles.resetInfo, { color: theme.colors.textSecondary }]}>
-                Monthly pools reset on the 1st of each month. Purchased extra time rolls over.
-              </Text>
+              {recordingTime ? (
+                <>
+                  <View style={styles.timeRow}>
+                    <Text style={[styles.timeLabel, { color: theme.colors.text }]}>
+                      Total Available:
+                    </Text>
+                    <Text style={[styles.timeValue, { color: theme.colors.primary }]}>
+                      {formatRecordingTime(totalTime)}
+                    </Text>
+                  </View>
 
-              {/* Buy Extra Time Button - Only for Subscribers */}
-              {isSubscriber && (
-                <TouchableOpacity
-                  style={[
-                    styles.extraTimeButton, 
-                    { backgroundColor: isBillingAvailable ? theme.colors.accent : theme.colors.textSecondary }
-                  ]}
-                  onPress={handleBuyExtraTime}
-                  disabled={isPurchasing || !isBillingAvailable}
-                >
-                  {isPurchasing ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <>
+                  {isLowOnTime && (
+                    <View style={[styles.warningBox, { backgroundColor: theme.colors.background, borderColor: theme.colors.accent }]}>
+                      <IconSymbol
+                        ios_icon_name="exclamationmark.triangle.fill"
+                        android_material_icon_name="warning"
+                        size={18}
+                        color={theme.colors.accent}
+                      />
+                      <Text style={[styles.warningText, { color: theme.colors.text }]}>
+                        You&apos;re running low on Recording Time. Consider upgrading to Subscriber for more time.
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.poolsContainer}>
+                    <Text style={[styles.poolsTitle, { color: theme.colors.textSecondary }]}>
+                      Available Pools:
+                    </Text>
+
+                    <View style={styles.poolRow}>
+                      <Text style={[styles.poolLabel, { color: theme.colors.text }]}>
+                        Free Monthly:
+                      </Text>
+                      <Text style={[styles.poolValue, { color: theme.colors.textSecondary }]}>
+                        {formatRecordingTime(recordingTime.freeMonthly)}
+                      </Text>
+                    </View>
+
+                    {subscriptionTier !== 'Free' && (
+                      <View style={styles.poolRow}>
+                        <Text style={[styles.poolLabel, { color: theme.colors.text }]}>
+                          Subscriber Monthly:
+                        </Text>
+                        <Text style={[styles.poolValue, { color: theme.colors.textSecondary }]}>
+                          {formatRecordingTime(recordingTime.subscriberMonthly)}
+                        </Text>
+                      </View>
+                    )}
+
+                    {recordingTime.purchasedExtra > 0 && (
+                      <View style={styles.poolRow}>
+                        <Text style={[styles.poolLabel, { color: theme.colors.text }]}>
+                          Purchased Extra:
+                        </Text>
+                        <Text style={[styles.poolValue, { color: theme.colors.textSecondary }]}>
+                          {formatRecordingTime(recordingTime.purchasedExtra)}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={[styles.infoBox, { backgroundColor: theme.colors.background }]}>
+                    <IconSymbol
+                      ios_icon_name="info.circle"
+                      android_material_icon_name="info"
+                      size={16}
+                      color={theme.colors.textSecondary}
+                    />
+                    <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
+                      Next pool to be used: {nextPool.poolName}
+                      {nextPool.available > 0 && ` (${formatRecordingTime(nextPool.available)})`}
+                    </Text>
+                  </View>
+
+                  <Text style={[styles.resetInfo, { color: theme.colors.textSecondary }]}>
+                    Monthly pools reset on the 1st of each month. Purchased extra time rolls over.
+                  </Text>
+
+                  {/* Buy Extra Time Button - Only for Subscribers */}
+                  {isSubscriber && (
+                    <TouchableOpacity
+                      style={[
+                        styles.extraTimeButton, 
+                        { backgroundColor: isBillingAvailable ? theme.colors.accent : theme.colors.textSecondary }
+                      ]}
+                      onPress={() => handleBuyExtraTime(extraTimePlacement)}
+                      disabled={!isBillingAvailable}
+                    >
                       <IconSymbol
                         ios_icon_name="plus.circle.fill"
                         android_material_icon_name="add-circle"
@@ -456,211 +519,206 @@ export default function SettingsScreen() {
                       <Text style={styles.extraTimeButtonText}>
                         {isBillingAvailable
                           ? `Buy Extra Time ($${BillingConfig.products.extraTime.price})`
-                          : 'Not Available in Expo Go'
+                          : 'Not Available'
                         }
                       </Text>
-                    </>
+                    </TouchableOpacity>
                   )}
-                </TouchableOpacity>
+                </>
+              ) : (
+                <ActivityIndicator size="small" color={theme.colors.primary} />
               )}
-            </>
-          ) : (
-            <ActivityIndicator size="small" color={theme.colors.primary} />
-          )}
-        </View>
+            </View>
 
-        {/* Restore Purchases */}
-        {isBillingAvailable && (
-          <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <View style={styles.sectionHeader}>
+            {/* Restore Purchases */}
+            {isBillingAvailable && (
+              <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                <View style={styles.sectionHeader}>
+                  <IconSymbol
+                    ios_icon_name="arrow.clockwise.circle.fill"
+                    android_material_icon_name="restore"
+                    size={24}
+                    color={theme.colors.primary}
+                  />
+                  <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                    Restore Purchases
+                  </Text>
+                </View>
+
+                <Text style={[styles.restoreDescription, { color: theme.colors.textSecondary }]}>
+                  If you previously purchased a subscription or extra time on this device or another device, tap below to restore your purchases.
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.restoreButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.primary }]}
+                  onPress={() => handleRestorePurchases(superwallUser)}
+                >
+                  <Text style={[styles.restoreButtonText, { color: theme.colors.primary }]}>
+                    Restore Purchases
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Developer/Test Access Code */}
+            <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+              <View style={styles.sectionHeader}>
+                <IconSymbol
+                  ios_icon_name="lock.open.fill"
+                  android_material_icon_name="lock-open"
+                  size={24}
+                  color={theme.colors.textSecondary}
+                />
+                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                  {isBillingAvailable ? 'Developer/Test Access Code' : 'Access Code (Testing)'}
+                </Text>
+              </View>
+
+              <View style={[styles.devBadge, { backgroundColor: theme.colors.background, borderColor: theme.colors.textSecondary }]}>
+                <Text style={[styles.devBadgeText, { color: theme.colors.textSecondary }]}>
+                  {isBillingAvailable ? 'FOR TESTING ONLY' : 'USE THIS TO TEST FEATURES'}
+                </Text>
+              </View>
+
+              {subscriptionTier === 'Subscriber (Unlocked)' ? (
+                <>
+                  <Text style={[styles.unlockDescription, { color: theme.colors.textSecondary }]}>
+                    Your subscription is currently unlocked via access code. You have access to all Subscriber features.
+                  </Text>
+                  
+                  <TouchableOpacity
+                    style={[styles.deactivateButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.danger }]}
+                    onPress={handleDeactivateUnlock}
+                  >
+                    <Text style={[styles.deactivateButtonText, { color: theme.colors.danger }]}>
+                      Deactivate Unlock
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.unlockDescription, { color: theme.colors.textSecondary }]}>
+                    {isBillingAvailable 
+                      ? 'Enter an access code to unlock Subscriber features for testing or development purposes. This does not affect store billing.'
+                      : 'Since in-app purchases aren\'t available, use this access code feature to test subscriber functionality. Enter the code to unlock all subscriber features.'
+                    }
+                  </Text>
+
+                  {!showAccessCodeInput ? (
+                    <TouchableOpacity
+                      style={[styles.unlockButton, { backgroundColor: theme.colors.textSecondary }]}
+                      onPress={() => setShowAccessCodeInput(true)}
+                    >
+                      <Text style={styles.unlockButtonText}>
+                        Enter Access Code
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.accessCodeContainer}>
+                      <TextInput
+                        style={[styles.accessCodeInput, { backgroundColor: theme.colors.background, color: theme.colors.text, borderColor: theme.colors.border }]}
+                        value={accessCode}
+                        onChangeText={setAccessCode}
+                        placeholder="Enter access code"
+                        placeholderTextColor={theme.colors.textSecondary}
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                      />
+                      
+                      <View style={styles.accessCodeButtons}>
+                        <TouchableOpacity
+                          style={[styles.cancelButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                          onPress={() => {
+                            setShowAccessCodeInput(false);
+                            setAccessCode('');
+                          }}
+                        >
+                          <Text style={[styles.cancelButtonText, { color: theme.colors.text }]}>
+                            Cancel
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.submitButton, { backgroundColor: theme.colors.textSecondary }]}
+                          onPress={handleUnlockSubscription}
+                          disabled={isUnlocking}
+                        >
+                          {isUnlocking ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <Text style={styles.submitButtonText}>
+                              Unlock
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
+
+            {/* Theme Selection */}
+            <Text style={[styles.mainSectionTitle, { color: theme.colors.text }]}>
+              Choose Your Theme
+            </Text>
+            <Text style={[styles.sectionDescription, { color: theme.colors.textSecondary }]}>
+              Select a calming color theme that feels right for you
+            </Text>
+
+            <View style={styles.themesGrid}>
+              {themeNames.map((name, index) => {
+                const isSelected = name === themeName;
+                const themeColors = themes[name].colors;
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.themeCard,
+                      { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
+                      isSelected && { borderColor: theme.colors.primary, borderWidth: 3 },
+                    ]}
+                    onPress={() => handleThemeSelect(name)}
+                  >
+                    <View style={styles.themeHeader}>
+                      <Text style={[styles.themeName, { color: theme.colors.text }]}>
+                        {name}
+                      </Text>
+                      {isSelected && (
+                        <IconSymbol
+                          ios_icon_name="checkmark.circle.fill"
+                          android_material_icon_name="check-circle"
+                          size={24}
+                          color={theme.colors.primary}
+                        />
+                      )}
+                    </View>
+                    
+                    <View style={styles.colorPreview}>
+                      <View style={[styles.colorSwatch, { backgroundColor: themeColors.primary }]} />
+                      <View style={[styles.colorSwatch, { backgroundColor: themeColors.secondary }]} />
+                      <View style={[styles.colorSwatch, { backgroundColor: themeColors.accent }]} />
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={[styles.infoBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, marginTop: 24 }]}>
               <IconSymbol
-                ios_icon_name="arrow.clockwise.circle.fill"
-                android_material_icon_name="restore"
+                ios_icon_name="info.circle.fill"
+                android_material_icon_name="info"
                 size={24}
                 color={theme.colors.primary}
               />
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                Restore Purchases
+              <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
+                Your theme preference is saved locally on your device and will be remembered when you return.
               </Text>
             </View>
-
-            <Text style={[styles.restoreDescription, { color: theme.colors.textSecondary }]}>
-              If you previously purchased a subscription or extra time on this device or another device, tap below to restore your purchases.
-            </Text>
-
-            <TouchableOpacity
-              style={[styles.restoreButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.primary }]}
-              onPress={handleRestorePurchases}
-              disabled={isRestoring}
-            >
-              {isRestoring ? (
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-              ) : (
-                <Text style={[styles.restoreButtonText, { color: theme.colors.primary }]}>
-                  Restore Purchases
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Developer/Test Access Code */}
-        <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <View style={styles.sectionHeader}>
-            <IconSymbol
-              ios_icon_name="lock.open.fill"
-              android_material_icon_name="lock-open"
-              size={24}
-              color={theme.colors.textSecondary}
-            />
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              {isBillingAvailable ? 'Developer/Test Access Code' : 'Access Code (Testing)'}
-            </Text>
-          </View>
-
-          <View style={[styles.devBadge, { backgroundColor: theme.colors.background, borderColor: theme.colors.textSecondary }]}>
-            <Text style={[styles.devBadgeText, { color: theme.colors.textSecondary }]}>
-              {isBillingAvailable ? 'FOR TESTING ONLY' : 'USE THIS TO TEST FEATURES'}
-            </Text>
-          </View>
-
-          {subscriptionTier === 'Subscriber (Unlocked)' ? (
-            <>
-              <Text style={[styles.unlockDescription, { color: theme.colors.textSecondary }]}>
-                Your subscription is currently unlocked via access code. You have access to all Subscriber features.
-              </Text>
-              
-              <TouchableOpacity
-                style={[styles.deactivateButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.danger }]}
-                onPress={handleDeactivateUnlock}
-              >
-                <Text style={[styles.deactivateButtonText, { color: theme.colors.danger }]}>
-                  Deactivate Unlock
-                </Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <Text style={[styles.unlockDescription, { color: theme.colors.textSecondary }]}>
-                {isBillingAvailable 
-                  ? 'Enter an access code to unlock Subscriber features for testing or development purposes. This does not affect store billing.'
-                  : 'Since in-app purchases aren\'t available in Expo Go, use this access code feature to test subscriber functionality. Enter the code to unlock all subscriber features.'
-                }
-              </Text>
-
-              {!showAccessCodeInput ? (
-                <TouchableOpacity
-                  style={[styles.unlockButton, { backgroundColor: theme.colors.textSecondary }]}
-                  onPress={() => setShowAccessCodeInput(true)}
-                >
-                  <Text style={styles.unlockButtonText}>
-                    Enter Access Code
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.accessCodeContainer}>
-                  <TextInput
-                    style={[styles.accessCodeInput, { backgroundColor: theme.colors.background, color: theme.colors.text, borderColor: theme.colors.border }]}
-                    value={accessCode}
-                    onChangeText={setAccessCode}
-                    placeholder="Enter access code"
-                    placeholderTextColor={theme.colors.textSecondary}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                  />
-                  
-                  <View style={styles.accessCodeButtons}>
-                    <TouchableOpacity
-                      style={[styles.cancelButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-                      onPress={() => {
-                        setShowAccessCodeInput(false);
-                        setAccessCode('');
-                      }}
-                    >
-                      <Text style={[styles.cancelButtonText, { color: theme.colors.text }]}>
-                        Cancel
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.submitButton, { backgroundColor: theme.colors.textSecondary }]}
-                      onPress={handleUnlockSubscription}
-                      disabled={isUnlocking}
-                    >
-                      {isUnlocking ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <Text style={styles.submitButtonText}>
-                          Unlock
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-            </>
-          )}
+          </ScrollView>
         </View>
-
-        {/* Theme Selection */}
-        <Text style={[styles.mainSectionTitle, { color: theme.colors.text }]}>
-          Choose Your Theme
-        </Text>
-        <Text style={[styles.sectionDescription, { color: theme.colors.textSecondary }]}>
-          Select a calming color theme that feels right for you
-        </Text>
-
-        <View style={styles.themesGrid}>
-          {themeNames.map((name, index) => {
-            const isSelected = name === themeName;
-            const themeColors = themes[name].colors;
-            return (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.themeCard,
-                  { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
-                  isSelected && { borderColor: theme.colors.primary, borderWidth: 3 },
-                ]}
-                onPress={() => handleThemeSelect(name)}
-              >
-                <View style={styles.themeHeader}>
-                  <Text style={[styles.themeName, { color: theme.colors.text }]}>
-                    {name}
-                  </Text>
-                  {isSelected && (
-                    <IconSymbol
-                      ios_icon_name="checkmark.circle.fill"
-                      android_material_icon_name="check-circle"
-                      size={24}
-                      color={theme.colors.primary}
-                    />
-                  )}
-                </View>
-                
-                <View style={styles.colorPreview}>
-                  <View style={[styles.colorSwatch, { backgroundColor: themeColors.primary }]} />
-                  <View style={[styles.colorSwatch, { backgroundColor: themeColors.secondary }]} />
-                  <View style={[styles.colorSwatch, { backgroundColor: themeColors.accent }]} />
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        <View style={[styles.infoBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, marginTop: 24 }]}>
-          <IconSymbol
-            ios_icon_name="info.circle.fill"
-            android_material_icon_name="info"
-            size={24}
-            color={theme.colors.primary}
-          />
-          <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-            Your theme preference is saved locally on your device and will be remembered when you return.
-          </Text>
-        </View>
-      </ScrollView>
-    </View>
+      )}
+    </SuperwallHooksWrapper>
   );
 }
 

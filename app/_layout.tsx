@@ -1,178 +1,165 @@
 
-import "react-native-reanimated";
-import React, { useEffect } from "react";
-import { useFonts } from "expo-font";
-import { Stack, router } from "expo-router";
-import * as SplashScreen from "expo-splash-screen";
-import { SystemBars } from "react-native-edge-to-edge";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert } from "react-native";
-import { useNetworkState } from "expo-network";
-import {
-  DarkTheme,
-  DefaultTheme,
-  Theme,
-  ThemeProvider as NavigationThemeProvider,
-} from "@react-navigation/native";
-import { StatusBar } from "expo-status-bar";
-import { WidgetProvider } from "@/contexts/WidgetContext";
-import { ThemeProvider } from "@/contexts/ThemeContext";
-import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
+import { useEffect } from 'react';
+import { Stack } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ThemeProvider } from '@/contexts/ThemeContext';
+import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
+import { SuperwallProvider, SuperwallLoading, SuperwallLoaded, SuperwallError } from 'expo-superwall';
+import { BillingConfig } from '@/constants/BillingConfig';
+import { View, Text, ActivityIndicator, StyleSheet, Platform } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
+// Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
 
-export const unstable_settings = {
-  initialRouteName: "(tabs)", // Ensure any route can link back to `/`
-};
+// Check if Superwall is available (won't be in Expo Go)
+let isSuperwallAvailable = false;
+try {
+  require('expo-superwall');
+  isSuperwallAvailable = Platform.OS !== 'web';
+} catch (error) {
+  console.log('Superwall not available - running in Expo Go or web');
+}
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const networkState = useNetworkState();
-  const [loaded] = useFonts({
-    SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
-  });
-
+function RootLayoutContent() {
   useEffect(() => {
-    if (loaded) {
+    // Hide splash screen after a short delay
+    const timer = setTimeout(() => {
       SplashScreen.hideAsync();
-    }
-  }, [loaded]);
+    }, 1000);
 
-  React.useEffect(() => {
-    if (
-      !networkState.isConnected &&
-      networkState.isInternetReachable === false
-    ) {
-      Alert.alert(
-        "🔌 You are offline",
-        "You can keep using the app! Your changes will be saved locally and synced when you are back online."
-      );
-    }
-  }, [networkState.isConnected, networkState.isInternetReachable]);
+    return () => clearTimeout(timer);
+  }, []);
 
-  if (!loaded) {
-    return null;
-  }
-
-  const CustomDefaultTheme: Theme = {
-    ...DefaultTheme,
-    dark: false,
-    colors: {
-      primary: "rgb(0, 122, 255)", // System Blue
-      background: "rgb(242, 242, 247)", // Light mode background
-      card: "rgb(255, 255, 255)", // White cards/surfaces
-      text: "rgb(0, 0, 0)", // Black text for light mode
-      border: "rgb(216, 216, 220)", // Light gray for separators/borders
-      notification: "rgb(255, 59, 48)", // System Red
-    },
-  };
-
-  const CustomDarkTheme: Theme = {
-    ...DarkTheme,
-    colors: {
-      primary: "rgb(10, 132, 255)", // System Blue (Dark Mode)
-      background: "rgb(1, 1, 1)", // True black background for OLED displays
-      card: "rgb(28, 28, 30)", // Dark card/surface color
-      text: "rgb(255, 255, 255)", // White text for dark mode
-      border: "rgb(44, 44, 46)", // Dark gray for separators/borders
-      notification: "rgb(255, 69, 58)", // System Red (Dark Mode)
-    },
-  };
   return (
-    <>
-      <StatusBar style="auto" animated />
-      <ThemeProvider>
-        <SubscriptionProvider>
-          <NavigationThemeProvider
-            value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
-          >
-            <WidgetProvider>
-              <GestureHandlerRootView>
-              <Stack>
-                {/* Main app with tabs */}
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-
-                {/* Modal Demo Screens */}
-                <Stack.Screen
-                  name="modal"
-                  options={{
-                    presentation: "modal",
-                    title: "Standard Modal",
-                  }}
-                />
-                <Stack.Screen
-                  name="formsheet"
-                  options={{
-                    presentation: "formSheet",
-                    title: "Form Sheet Modal",
-                    sheetGrabberVisible: true,
-                    sheetAllowedDetents: [0.5, 0.8, 1.0],
-                    sheetCornerRadius: 20,
-                  }}
-                />
-                <Stack.Screen
-                  name="transparent-modal"
-                  options={{
-                    presentation: "transparentModal",
-                    headerShown: false,
-                  }}
-                />
-                <Stack.Screen
-                  name="add-recipient"
-                  options={{
-                    presentation: "modal",
-                    headerShown: false,
-                  }}
-                />
-                <Stack.Screen
-                  name="compose-message"
-                  options={{
-                    presentation: "modal",
-                    headerShown: false,
-                  }}
-                />
-                <Stack.Screen
-                  name="support-resources"
-                  options={{
-                    presentation: "modal",
-                    headerShown: false,
-                  }}
-                />
-                <Stack.Screen
-                  name="settings"
-                  options={{
-                    presentation: "modal",
-                    headerShown: false,
-                  }}
-                />
-                <Stack.Screen
-                  name="recipient/[id]"
-                  options={{
-                    headerShown: false,
-                  }}
-                />
-                <Stack.Screen
-                  name="edit-profile"
-                  options={{
-                    presentation: "modal",
-                    headerShown: false,
-                  }}
-                />
-                <Stack.Screen
-                  name="edit-recipient"
-                  options={{
-                    presentation: "modal",
-                    headerShown: false,
-                  }}
-                />
-              </Stack>
-              <SystemBars style={"auto"} />
-              </GestureHandlerRootView>
-            </WidgetProvider>
-          </NavigationThemeProvider>
-        </SubscriptionProvider>
-      </ThemeProvider>
-    </>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'default',
+        }}
+      >
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="modal"
+          options={{
+            presentation: 'modal',
+            animation: 'slide_from_bottom',
+          }}
+        />
+        <Stack.Screen
+          name="formsheet"
+          options={{
+            presentation: 'formSheet',
+            animation: 'slide_from_bottom',
+          }}
+        />
+        <Stack.Screen
+          name="transparent-modal"
+          options={{
+            presentation: 'transparentModal',
+            animation: 'fade',
+          }}
+        />
+      </Stack>
+    </GestureHandlerRootView>
   );
 }
+
+function SuperwallWrapper({ children }: { children: React.ReactNode }) {
+  if (!isSuperwallAvailable) {
+    // If Superwall is not available (Expo Go or web), just render children
+    console.log('Superwall not available - rendering without SuperwallProvider');
+    return <>{children}</>;
+  }
+
+  return (
+    <SuperwallProvider
+      apiKeys={{
+        ios: BillingConfig.superwall.apiKey,
+        android: BillingConfig.superwall.apiKey,
+      }}
+      options={{
+        logging: {
+          level: 'debug',
+          scopes: ['all'],
+        },
+      }}
+      onConfigurationError={(error) => {
+        console.error('Superwall configuration error:', error);
+      }}
+    >
+      <SuperwallLoading>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Initializing...</Text>
+        </View>
+      </SuperwallLoading>
+
+      <SuperwallError>
+        {(error) => (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorTitle}>Configuration Error</Text>
+            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorSubtext}>
+              The app will continue in limited mode. Some features may not be available.
+            </Text>
+          </View>
+        )}
+      </SuperwallError>
+
+      <SuperwallLoaded>{children}</SuperwallLoaded>
+    </SuperwallProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <SuperwallWrapper>
+        <SubscriptionProvider>
+          <RootLayoutContent />
+        </SubscriptionProvider>
+      </SuperwallWrapper>
+    </ThemeProvider>
+  );
+}
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666666',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 12,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#666666',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  errorSubtext: {
+    fontSize: 12,
+    color: '#999999',
+    textAlign: 'center',
+    marginTop: 12,
+  },
+});
