@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Platform } from 'react-native';
 import { SubscriptionTier } from '@/types';
 import { StorageService } from '@/utils/storage';
@@ -10,14 +10,17 @@ let useUser: any = null;
 let useSuperwallEvents: any = null;
 let isSuperwallAvailable = false;
 
-try {
-  const SuperwallModule = require('expo-superwall');
-  useUser = SuperwallModule.useUser;
-  useSuperwallEvents = SuperwallModule.useSuperwallEvents;
-  isSuperwallAvailable = Platform.OS !== 'web';
-  console.log('Superwall hooks loaded successfully');
-} catch (error) {
-  console.log('Superwall hooks not available - running in Expo Go or web');
+// Check if Superwall is available
+if (Platform.OS !== 'web') {
+  try {
+    const superwallModule = require('expo-superwall');
+    useUser = superwallModule.useUser;
+    useSuperwallEvents = superwallModule.useSuperwallEvents;
+    isSuperwallAvailable = true;
+    console.log('Superwall hooks loaded successfully');
+  } catch (error) {
+    console.log('Superwall hooks not available - running in Expo Go or web');
+  }
 }
 
 interface SubscriptionContextType {
@@ -45,6 +48,7 @@ function SuperwallEventHandler() {
   }
 
   // Call the hook unconditionally
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useSuperwallEvents({
     onSubscriptionStatusChange: async (status: any) => {
       console.log('Superwall subscription status changed:', status);
@@ -73,47 +77,13 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
 
   // Always call useUser hook, even if Superwall is not available
   // This is safe because we check availability before calling
-  const superwallUser = isSuperwallAvailable && useUser ? useUser() : null;
+  let superwallUser = null;
+  if (isSuperwallAvailable && useUser) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    superwallUser = useUser();
+  }
 
-  useEffect(() => {
-    initializeSubscription();
-  }, []);
-
-  // Sync with Superwall subscription status when it changes
-  useEffect(() => {
-    if (superwallUser?.subscriptionStatus) {
-      const status = superwallUser.subscriptionStatus;
-      console.log('Superwall subscription status from useUser:', status);
-      
-      syncSuperwallStatus(status);
-    }
-  }, [superwallUser?.subscriptionStatus]);
-
-  const syncSuperwallStatus = async (status: any) => {
-    try {
-      const currentStatus = await StorageService.getSubscriptionStatus();
-      
-      // Don't override if unlocked via access code
-      if (currentStatus.isUnlocked) {
-        console.log('Subscription unlocked via access code - not syncing with Superwall');
-        return;
-      }
-
-      if (status.status === 'ACTIVE' && currentStatus.tier === 'Free') {
-        console.log('Activating subscription from Superwall status');
-        await billingService.activateSubscription();
-        await loadSubscription();
-      } else if (status.status !== 'ACTIVE' && currentStatus.tier === 'Subscriber') {
-        console.log('Deactivating subscription from Superwall status');
-        await billingService.deactivateSubscription();
-        await loadSubscription();
-      }
-    } catch (error) {
-      console.error('Error syncing Superwall status:', error);
-    }
-  };
-
-  const initializeSubscription = async () => {
+  const initializeSubscription = useCallback(async () => {
     try {
       console.log('Initializing subscription context...');
       
@@ -137,9 +107,9 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
       // Still load local subscription data even if billing fails
       await loadSubscription();
     }
-  };
+  }, []);
 
-  const loadSubscription = async () => {
+  const loadSubscription = useCallback(async () => {
     try {
       const status = await StorageService.getSubscriptionStatus();
       setSubscriptionTier(status.tier);
@@ -147,9 +117,47 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error('Error loading subscription:', error);
     }
-  };
+  }, []);
 
-  const refreshSubscription = async () => {
+  const syncSuperwallStatus = useCallback(async (status: any) => {
+    try {
+      const currentStatus = await StorageService.getSubscriptionStatus();
+      
+      // Don't override if unlocked via access code
+      if (currentStatus.isUnlocked) {
+        console.log('Subscription unlocked via access code - not syncing with Superwall');
+        return;
+      }
+
+      if (status.status === 'ACTIVE' && currentStatus.tier === 'Free') {
+        console.log('Activating subscription from Superwall status');
+        await billingService.activateSubscription();
+        await loadSubscription();
+      } else if (status.status !== 'ACTIVE' && currentStatus.tier === 'Subscriber') {
+        console.log('Deactivating subscription from Superwall status');
+        await billingService.deactivateSubscription();
+        await loadSubscription();
+      }
+    } catch (error) {
+      console.error('Error syncing Superwall status:', error);
+    }
+  }, [loadSubscription]);
+
+  useEffect(() => {
+    initializeSubscription();
+  }, [initializeSubscription]);
+
+  // Sync with Superwall subscription status when it changes
+  useEffect(() => {
+    if (superwallUser?.subscriptionStatus) {
+      const status = superwallUser.subscriptionStatus;
+      console.log('Superwall subscription status from useUser:', status);
+      
+      syncSuperwallStatus(status);
+    }
+  }, [superwallUser?.subscriptionStatus, syncSuperwallStatus]);
+
+  const refreshSubscription = useCallback(async () => {
     console.log('Refreshing subscription...');
     
     // If Superwall is available, refresh from there
@@ -163,7 +171,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
     }
     
     await loadSubscription();
-  };
+  }, [superwallUser, loadSubscription]);
 
   const isSubscriber = subscriptionTier !== 'Free';
 

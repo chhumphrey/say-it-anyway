@@ -13,10 +13,10 @@ let TestIds: any;
 
 if (Platform.OS !== 'web') {
   try {
-    const GoogleMobileAds = require('react-native-google-mobile-ads');
-    BannerAd = GoogleMobileAds.BannerAd;
-    BannerAdSize = GoogleMobileAds.BannerAdSize;
-    TestIds = GoogleMobileAds.TestIds;
+    const adsModule = require('react-native-google-mobile-ads');
+    BannerAd = adsModule.BannerAd;
+    BannerAdSize = adsModule.BannerAdSize;
+    TestIds = adsModule.TestIds;
   } catch (error) {
     console.error('Failed to load react-native-google-mobile-ads:', error);
   }

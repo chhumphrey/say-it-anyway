@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -32,11 +32,7 @@ export default function EditRecipientScreen() {
 
   const genderOptions: Gender[] = ['Male', 'Female', 'Non-Binary', 'Decline to State'];
 
-  useEffect(() => {
-    loadRecipient();
-  }, [id]);
-
-  const loadRecipient = async () => {
+  const loadRecipient = useCallback(async () => {
     const recipients = await StorageService.getRecipients();
     const recipient = recipients.find(r => r.id === id);
     
@@ -50,7 +46,11 @@ export default function EditRecipientScreen() {
       setNotes(recipient.notes || '');
       setIsDefault(recipient.isDefault || false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    loadRecipient();
+  }, [loadRecipient]);
 
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();

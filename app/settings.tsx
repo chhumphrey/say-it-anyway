@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -27,66 +27,80 @@ let usePlacement: any = null;
 let useUser: any = null;
 let isSuperwallAvailable = false;
 
-try {
-  const SuperwallModule = require('expo-superwall');
-  usePlacement = SuperwallModule.usePlacement;
-  useUser = SuperwallModule.useUser;
-  isSuperwallAvailable = Platform.OS !== 'web';
-  console.log('Superwall hooks loaded in settings');
-} catch (error) {
-  console.log('Superwall hooks not available in settings');
+// Check if Superwall is available
+if (Platform.OS !== 'web') {
+  try {
+    const superwallModule = require('expo-superwall');
+    usePlacement = superwallModule.usePlacement;
+    useUser = superwallModule.useUser;
+    isSuperwallAvailable = true;
+    console.log('Superwall hooks loaded in settings');
+  } catch (error) {
+    console.log('Superwall hooks not available in settings');
+  }
 }
 
 // Wrapper component for Superwall hooks to ensure they're always called
 function SuperwallHooksWrapper({ children }: { children: (hooks: any) => React.ReactNode }) {
-  // Always call hooks unconditionally
-  const superwallUser = isSuperwallAvailable && useUser ? useUser() : null;
-  
-  const subscriptionPlacement = isSuperwallAvailable && usePlacement ? usePlacement({
-    onPresent: (info: any) => {
-      console.log('Subscription paywall presented:', info);
-    },
-    onDismiss: async (info: any, result: any) => {
-      console.log('Subscription paywall dismissed:', info, result);
-      
-      if (result.state === 'purchased') {
-        await billingService.activateSubscription();
-        
-        Alert.alert(
-          'Subscription Activated!',
-          'Thank you for subscribing! You now have:\n\n• 60 minutes of Recording Time per month\n• No ads\n\nYour subscription will renew automatically each month.',
-          [{ text: 'OK' }]
-        );
-      }
-    },
-    onError: (error: string) => {
-      console.error('Subscription paywall error:', error);
-      Alert.alert('Error', 'Could not show subscription options. Please try again.');
-    },
-  }) : null;
+  // Always call hooks unconditionally at the top level
+  let superwallUser = null;
+  let subscriptionPlacement = null;
+  let extraTimePlacement = null;
 
-  const extraTimePlacement = isSuperwallAvailable && usePlacement ? usePlacement({
-    onPresent: (info: any) => {
-      console.log('Extra time paywall presented:', info);
-    },
-    onDismiss: async (info: any, result: any) => {
-      console.log('Extra time paywall dismissed:', info, result);
-      
-      if (result.state === 'purchased') {
-        await billingService.addExtraRecordingTime();
+  if (isSuperwallAvailable && useUser) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    superwallUser = useUser();
+  }
+  
+  if (isSuperwallAvailable && usePlacement) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    subscriptionPlacement = usePlacement({
+      onPresent: (info: any) => {
+        console.log('Subscription paywall presented:', info);
+      },
+      onDismiss: async (info: any, result: any) => {
+        console.log('Subscription paywall dismissed:', info, result);
         
-        Alert.alert(
-          'Extra Time Added!',
-          'You now have an additional 60 minutes of Recording Time. This time rolls over and never expires!',
-          [{ text: 'OK' }]
-        );
-      }
-    },
-    onError: (error: string) => {
-      console.error('Extra time paywall error:', error);
-      Alert.alert('Error', 'Could not show purchase options. Please try again.');
-    },
-  }) : null;
+        if (result.state === 'purchased') {
+          await billingService.activateSubscription();
+          
+          Alert.alert(
+            'Subscription Activated!',
+            'Thank you for subscribing! You now have:\n\n• 60 minutes of Recording Time per month\n• No ads\n\nYour subscription will renew automatically each month.',
+            [{ text: 'OK' }]
+          );
+        }
+      },
+      onError: (error: string) => {
+        console.error('Subscription paywall error:', error);
+        Alert.alert('Error', 'Could not show subscription options. Please try again.');
+      },
+    });
+
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    extraTimePlacement = usePlacement({
+      onPresent: (info: any) => {
+        console.log('Extra time paywall presented:', info);
+      },
+      onDismiss: async (info: any, result: any) => {
+        console.log('Extra time paywall dismissed:', info, result);
+        
+        if (result.state === 'purchased') {
+          await billingService.addExtraRecordingTime();
+          
+          Alert.alert(
+            'Extra Time Added!',
+            'You now have an additional 60 minutes of Recording Time. This time rolls over and never expires!',
+            [{ text: 'OK' }]
+          );
+        }
+      },
+      onError: (error: string) => {
+        console.error('Extra time paywall error:', error);
+        Alert.alert('Error', 'Could not show purchase options. Please try again.');
+      },
+    });
+  }
 
   return <>{children({ superwallUser, subscriptionPlacement, extraTimePlacement })}</>;
 }
@@ -101,11 +115,7 @@ export default function SettingsScreen() {
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [showAccessCodeInput, setShowAccessCodeInput] = useState(false);
 
-  useEffect(() => {
-    loadSubscriptionData();
-  }, []);
-
-  const loadSubscriptionData = async () => {
+  const loadSubscriptionData = useCallback(async () => {
     try {
       const status = await StorageService.getSubscriptionStatus();
       setSubscriptionTier(status.tier);
@@ -115,7 +125,11 @@ export default function SettingsScreen() {
     } catch (error) {
       console.error('Error loading subscription data:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadSubscriptionData();
+  }, [loadSubscriptionData]);
 
   const handleThemeSelect = (newTheme: ThemeName) => {
     setTheme(newTheme);

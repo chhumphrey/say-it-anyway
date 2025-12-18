@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -41,28 +41,7 @@ export default function ComposeMessageScreen() {
 
   const audioRecorder = useAudioRecorder(RecordingPresets.LOW_QUALITY);
 
-  useEffect(() => {
-    if (type === 'audio') {
-      checkAndRequestPermissions();
-      loadRecordingTime();
-    } else {
-      setIsCheckingPermission(false);
-    }
-  }, [type]);
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isRecording) {
-      interval = setInterval(() => {
-        setRecordingDuration(prev => prev + 1);
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isRecording]);
-
-  const loadRecordingTime = async () => {
+  const loadRecordingTime = useCallback(async () => {
     try {
       const total = await StorageService.getTotalRecordingTime();
       setAvailableRecordingTime(total);
@@ -74,9 +53,22 @@ export default function ComposeMessageScreen() {
     } catch (error) {
       console.error('Error loading recording time:', error);
     }
-  };
+  }, []);
 
-  const checkAndRequestPermissions = async () => {
+  const configureAudioMode = useCallback(async () => {
+    try {
+      console.log('Configuring audio mode...');
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: true,
+      });
+      console.log('Audio mode configured successfully');
+    } catch (error) {
+      console.error('Error configuring audio mode:', error);
+    }
+  }, []);
+
+  const checkAndRequestPermissions = useCallback(async () => {
     try {
       console.log('Checking audio recording permissions...');
       setIsCheckingPermission(true);
@@ -119,20 +111,28 @@ export default function ComposeMessageScreen() {
     } finally {
       setIsCheckingPermission(false);
     }
-  };
+  }, [configureAudioMode, router]);
 
-  const configureAudioMode = async () => {
-    try {
-      console.log('Configuring audio mode...');
-      await setAudioModeAsync({
-        playsInSilentMode: true,
-        allowsRecording: true,
-      });
-      console.log('Audio mode configured successfully');
-    } catch (error) {
-      console.error('Error configuring audio mode:', error);
+  useEffect(() => {
+    if (type === 'audio') {
+      checkAndRequestPermissions();
+      loadRecordingTime();
+    } else {
+      setIsCheckingPermission(false);
     }
-  };
+  }, [type, checkAndRequestPermissions, loadRecordingTime]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isRecording) {
+      interval = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isRecording]);
 
   const startRecording = async () => {
     if (!hasPermission) {

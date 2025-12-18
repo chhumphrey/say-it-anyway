@@ -13,13 +13,7 @@ import * as SplashScreen from 'expo-splash-screen';
 SplashScreen.preventAutoHideAsync();
 
 // Check if Superwall is available (won't be in Expo Go)
-let isSuperwallAvailable = false;
-try {
-  require('expo-superwall');
-  isSuperwallAvailable = Platform.OS !== 'web';
-} catch (error) {
-  console.log('Superwall not available - running in Expo Go or web');
-}
+const isSuperwallAvailable = Platform.OS !== 'web';
 
 function RootLayoutContent() {
   useEffect(() => {

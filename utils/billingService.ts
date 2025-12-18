@@ -1,7 +1,6 @@
 
-import { Platform, Alert } from 'react-native';
+import { Platform } from 'react-native';
 import { StorageService } from './storage';
-import { BillingConfig } from '@/constants/BillingConfig';
 
 // This service now acts as a bridge between the app and Superwall
 // The actual purchase logic is handled by Superwall's hooks in the UI layer

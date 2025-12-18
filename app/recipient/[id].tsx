@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Alert,
   LayoutChangeEvent,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -34,20 +33,7 @@ export default function RecipientDetailScreen() {
 
   console.log('RecipientDetailScreen render:', { id, recipientId: recipient?.id, messageCount: messages.length });
 
-  useEffect(() => {
-    console.log('RecipientDetailScreen useEffect triggered');
-    loadData();
-  }, [id]);
-
-  // Use useFocusEffect to reload data when screen comes into focus
-  useFocusEffect(
-    React.useCallback(() => {
-      console.log('RecipientDetailScreen focused');
-      loadData();
-    }, [id])
-  );
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       console.log('Loading data for recipient:', id);
       setIsLoading(true);
@@ -71,13 +57,26 @@ export default function RecipientDetailScreen() {
       console.error('Error loading data:', error);
       setIsLoading(false);
     }
-  };
+  }, [id]);
 
-  const toggleHidden = async (messageId: string, currentHidden: boolean) => {
+  useEffect(() => {
+    console.log('RecipientDetailScreen useEffect triggered');
+    loadData();
+  }, [loadData]);
+
+  // Use useFocusEffect to reload data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('RecipientDetailScreen focused');
+      loadData();
+    }, [loadData])
+  );
+
+  const toggleHidden = useCallback(async (messageId: string, currentHidden: boolean) => {
     console.log('Toggling hidden for message:', messageId);
     await StorageService.updateMessage(messageId, { isHidden: !currentHidden });
-    loadData();
-  };
+    await loadData();
+  }, [loadData]);
 
   const toggleExpanded = (messageId: string) => {
     console.log('Toggling expanded for message:', messageId);
