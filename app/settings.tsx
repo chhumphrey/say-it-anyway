@@ -145,14 +145,14 @@ export default function SettingsScreen() {
           </Text>
 
           <View style={styles.themesGrid}>
-            {themeNames.map((name, index) => {
+            {themeNames.map((name) => {
               const isSelected = name === themeName;
               const themeColors = themes[name].colors;
               const isJewelTone = name.includes('Jewel');
               
               return (
                 <TouchableOpacity
-                  key={index}
+                  key={name}
                   style={[
                     styles.themeCard,
                     { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
@@ -214,12 +214,12 @@ export default function SettingsScreen() {
           </Text>
 
           <View style={styles.scenesGrid}>
-            {backgroundScenes.map((scene, index) => {
+            {backgroundScenes.map((scene) => {
               const isSelected = scene === backgroundSettings.scene;
               
               return (
                 <TouchableOpacity
-                  key={index}
+                  key={scene}
                   style={[
                     styles.sceneCard,
                     { backgroundColor: theme.colors.card, borderColor: theme.colors.border },

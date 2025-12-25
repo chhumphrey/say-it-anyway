@@ -35,11 +35,11 @@ export class StorageService {
     await this.saveRecipients(recipients);
   }
 
-  static async updateRecipient(updatedRecipient: Recipient): Promise<void> {
+  static async updateRecipient(id: string, updates: Partial<Recipient>): Promise<void> {
     const recipients = await this.getRecipients();
-    const index = recipients.findIndex(r => r.id === updatedRecipient.id);
+    const index = recipients.findIndex(r => r.id === id);
     if (index !== -1) {
-      recipients[index] = updatedRecipient;
+      recipients[index] = { ...recipients[index], ...updates };
       await this.saveRecipients(recipients);
     }
   }
@@ -78,6 +78,10 @@ export class StorageService {
     const messages = await this.getMessages();
     messages.push(message);
     await this.saveMessages(messages);
+  }
+
+  static async saveMessage(message: Message): Promise<void> {
+    await this.addMessage(message);
   }
 
   static async updateMessage(updatedMessage: Message): Promise<void> {
@@ -161,10 +165,10 @@ export class StorageService {
   static async getBackgroundSettings(): Promise<BackgroundSettings> {
     try {
       const data = await SecureStore.getItemAsync(BACKGROUND_SETTINGS_KEY);
-      return data ? JSON.parse(data) : { scene: 'Ocean' };
+      return data ? JSON.parse(data) : { scene: 'Ocean', transparency: 15 };
     } catch (error) {
       console.error('Error loading background settings:', error);
-      return { scene: 'Ocean' };
+      return { scene: 'Ocean', transparency: 15 };
     }
   }
 

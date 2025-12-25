@@ -20,6 +20,7 @@ import {
 } from 'expo-audio';
 import { Message } from '@/types';
 import { StorageService } from '@/utils/storage';
+import { generateUUID } from '@/utils/uuid';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { screenMessage } from '@/utils/mentalHealthScreening';
@@ -199,7 +200,7 @@ export default function ComposeMessageScreen() {
       }
       
       const message: Message = {
-        id: Date.now().toString(),
+        id: generateUUID(),
         recipientId: recipientId as string,
         timestamp: Date.now(),
         type: type as 'text' | 'audio',
@@ -212,6 +213,7 @@ export default function ComposeMessageScreen() {
         isHidden: false,
       };
 
+      console.log('Created message with ID:', message.id);
       await StorageService.saveMessage(message);
       console.log('Message saved:', message.id);
 

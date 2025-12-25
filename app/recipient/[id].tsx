@@ -49,6 +49,7 @@ export default function RecipientDetailScreen() {
       if (found) {
         const allMessages = await StorageService.getMessagesForRecipient(id as string);
         console.log('Messages loaded:', allMessages.length);
+        allMessages.forEach(m => console.log('  - Message:', m.id, m.type));
         const sorted = allMessages.sort((a, b) => b.timestamp - a.timestamp);
         setMessages(sorted);
       }
@@ -311,9 +312,9 @@ export default function RecipientDetailScreen() {
               </Text>
             </View>
           ) : (
-            visibleMessages.map((message, index) => (
+            visibleMessages.map((message) => (
               <MessageCard
-                key={`${message.id}-${index}`}
+                key={message.id}
                 message={message}
                 theme={theme}
                 isExpanded={expandedMessages.has(message.id)}

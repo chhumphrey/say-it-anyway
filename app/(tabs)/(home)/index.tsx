@@ -33,6 +33,9 @@ export default function HomeScreen() {
 
   const loadRecipients = async () => {
     const data = await StorageService.getRecipients();
+    console.log('Loaded recipients:', data.length, 'recipients');
+    data.forEach(r => console.log('  - Recipient:', r.id, r.name));
+    
     const sorted = data.sort((a, b) => {
       if (a.isDefault) return -1;
       if (b.isDefault) return 1;
@@ -128,9 +131,9 @@ export default function HomeScreen() {
             </View>
           ) : (
             <View style={styles.grid}>
-              {recipients.map((recipient, index) => (
+              {recipients.map((recipient) => (
                 <TouchableOpacity
-                  key={recipient.id || `recipient-${index}`}
+                  key={recipient.id}
                   style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
                   onPress={() => router.push(`/recipient/${recipient.id}`)}
                 >

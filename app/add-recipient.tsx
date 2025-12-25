@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Recipient, Gender } from '@/types';
 import { StorageService } from '@/utils/storage';
+import { generateUUID } from '@/utils/uuid';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 
@@ -59,7 +60,7 @@ export default function AddRecipientScreen() {
     }
 
     const recipient: Recipient = {
-      id: Date.now().toString(),
+      id: generateUUID(),
       name: name.trim(),
       nickname: nickname.trim() || undefined,
       gender,
@@ -70,6 +71,8 @@ export default function AddRecipientScreen() {
       isDefault,
     };
 
+    console.log('Creating new recipient with ID:', recipient.id);
+
     const recipients = await StorageService.getRecipients();
     
     if (isDefault) {
@@ -79,6 +82,7 @@ export default function AddRecipientScreen() {
     recipients.push(recipient);
     await StorageService.saveRecipients(recipients);
 
+    console.log('Recipient saved successfully');
     router.back();
   };
 
