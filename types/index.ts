@@ -63,23 +63,3 @@ export interface AppTheme {
     danger: string;
   };
 }
-
-// Recording Time Management
-export interface RecordingTime {
-  freeMonthly: number; // Seconds remaining in free monthly pool (300 max)
-  subscriberMonthly: number; // Seconds remaining in subscriber monthly pool (3600 max)
-  purchasedExtra: number; // Seconds remaining in purchased extra pool (rolls over)
-  lastResetMonth: number; // Month (1-12) when pools were last reset
-  lastResetYear: number; // Year when pools were last reset
-}
-
-// Subscription Status
-export type SubscriptionTier = 'Free' | 'Subscriber' | 'Subscriber (Unlocked)';
-
-export interface SubscriptionStatus {
-  tier: SubscriptionTier;
-  isUnlocked: boolean; // True if unlocked via access code
-  unlockedDate?: number; // Timestamp when unlocked via access code
-  storeSubscriptionActive?: boolean; // True if store subscription is active
-  subscriptionActivatedDate?: number; // Timestamp when store subscription was activated
-}

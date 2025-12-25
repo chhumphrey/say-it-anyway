@@ -1,117 +1,49 @@
 
-import { StorageService } from './storage';
+// Transcription service for audio messages
+// This is a placeholder implementation that returns a message indicating
+// transcription is coming soon. In the future, this can be replaced with
+// an actual on-device or cloud-based transcription service.
 
 export interface TranscriptionResult {
   success: boolean;
   transcript?: string;
   error?: string;
-  method?: 'stub' | 'cloud' | 'unavailable';
 }
 
-/**
- * Pluggable transcription service interface.
- * Currently returns a placeholder transcript.
- * Can be replaced with AWS Transcribe, Google Cloud Speech, etc. later.
- */
-export const transcribeAudio = async (
+export async function transcribeAudio(
   audioUri: string,
   durationSeconds: number
-): Promise<TranscriptionResult> => {
-  console.log('Transcription requested:', { audioUri, durationSeconds });
-
-  try {
-    // Round up duration to nearest second
-    const roundedDuration = Math.ceil(durationSeconds);
-
-    // Check if sufficient recording time is available
-    const totalAvailable = await StorageService.getTotalRecordingTime();
-    
-    if (totalAvailable < roundedDuration) {
-      console.log('Insufficient recording time for transcription:', {
-        available: totalAvailable,
-        needed: roundedDuration,
-      });
-      
-      return {
-        success: false,
-        error: `Insufficient Recording Time. You need ${roundedDuration} seconds but only have ${totalAvailable} seconds available.`,
-        method: 'unavailable',
-      };
-    }
-
-    // Deduct recording time
-    const deducted = await StorageService.deductRecordingTime(roundedDuration);
-    
-    if (!deducted) {
-      console.log('Failed to deduct recording time');
-      return {
-        success: false,
-        error: 'Could not deduct recording time. Please try again.',
-        method: 'unavailable',
-      };
-    }
-
-    console.log(`Recording time deducted: ${roundedDuration} seconds`);
-
-    // Return placeholder transcript
-    // TODO: Replace with actual cloud transcription service
-    const placeholderTranscript = '(Transcription pending – coming soon)';
-    
-    return {
-      success: true,
-      transcript: placeholderTranscript,
-      method: 'stub',
-    };
-  } catch (error) {
-    console.error('Transcription error:', error);
-    return {
-      success: false,
-      error: 'An error occurred during transcription. Please try again.',
-      method: 'unavailable',
-    };
-  }
-};
-
-/**
- * Retry transcription for a message that previously failed.
- */
-export const retryTranscription = async (
-  audioUri: string,
-  durationSeconds: number
-): Promise<TranscriptionResult> => {
-  console.log('Retrying transcription:', { audioUri, durationSeconds });
-  return transcribeAudio(audioUri, durationSeconds);
-};
-
-/**
- * Check if transcription is available (always true for stub, can check API availability later).
- */
-export const isTranscriptionAvailable = (): boolean => {
-  // For now, always return true since we have a stub implementation
-  return true;
-};
-
-/**
- * Get a user-friendly message about transcription status.
- */
-export const getTranscriptionMessage = (): string => {
-  return 'Audio messages will be transcribed using your available Recording Time. Transcripts are used for mental health screening.';
-};
-
-/**
- * Format seconds into a human-readable time string.
- */
-export const formatRecordingTime = (seconds: number): string => {
-  if (seconds < 60) {
-    return `${seconds} second${seconds !== 1 ? 's' : ''}`;
-  }
+): Promise<TranscriptionResult> {
+  console.log('Transcription requested for:', audioUri, 'Duration:', durationSeconds);
   
+  // Placeholder implementation
+  // In the future, integrate with a transcription service like:
+  // - Expo Speech Recognition (when available)
+  // - Web Speech API (for web platform)
+  // - Cloud services (Google Cloud Speech-to-Text, AWS Transcribe, etc.)
+  
+  return {
+    success: true,
+    transcript: '(Transcription pending – coming soon)',
+    error: undefined,
+  };
+}
+
+export function getTranscriptionMessage(): string {
+  return 'Audio transcription is coming soon. Your audio will be saved and can be played back anytime.';
+}
+
+export function formatRecordingTime(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
   
+  if (minutes === 0) {
+    return `${remainingSeconds}s`;
+  }
+  
   if (remainingSeconds === 0) {
-    return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+    return `${minutes}m`;
   }
   
   return `${minutes}m ${remainingSeconds}s`;
-};
+}

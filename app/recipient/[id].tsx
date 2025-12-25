@@ -15,7 +15,6 @@ import { Recipient, Message } from '@/types';
 import { StorageService } from '@/utils/storage';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
-import { AdBanner } from '@/components/AdBanner';
 
 interface AudioPlayerState {
   [messageId: string]: ReturnType<typeof useAudioPlayer>;
@@ -199,9 +198,6 @@ export default function RecipientDetailScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Ad Banner at top - only shown for free tier */}
-        <AdBanner screenName="recipient-detail" />
-
         <View style={styles.recipientInfo}>
           {recipient.photoUri ? (
             <Image source={{ uri: recipient.photoUri }} style={styles.photo} />

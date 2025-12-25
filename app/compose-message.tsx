@@ -23,7 +23,7 @@ import { StorageService } from '@/utils/storage';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { screenMessage } from '@/utils/mentalHealthScreening';
-import { transcribeAudio, getTranscriptionMessage, formatRecordingTime } from '@/utils/transcription';
+import { transcribeAudio, getTranscriptionMessage } from '@/utils/transcription';
 
 export default function ComposeMessageScreen() {
   const router = useRouter();
@@ -36,24 +36,8 @@ export default function ComposeMessageScreen() {
   const [hasPermission, setHasPermission] = useState(false);
   const [isCheckingPermission, setIsCheckingPermission] = useState(true);
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [availableRecordingTime, setAvailableRecordingTime] = useState(0);
-  const [showLowTimeWarning, setShowLowTimeWarning] = useState(false);
 
   const audioRecorder = useAudioRecorder(RecordingPresets.LOW_QUALITY);
-
-  const loadRecordingTime = useCallback(async () => {
-    try {
-      const total = await StorageService.getTotalRecordingTime();
-      setAvailableRecordingTime(total);
-      
-      // Show warning if within 5 minutes (300 seconds) of exhausting time
-      if (total > 0 && total <= 300) {
-        setShowLowTimeWarning(true);
-      }
-    } catch (error) {
-      console.error('Error loading recording time:', error);
-    }
-  }, []);
 
   const configureAudioMode = useCallback(async () => {
     try {
@@ -116,11 +100,10 @@ export default function ComposeMessageScreen() {
   useEffect(() => {
     if (type === 'audio') {
       checkAndRequestPermissions();
-      loadRecordingTime();
     } else {
       setIsCheckingPermission(false);
     }
-  }, [type, checkAndRequestPermissions, loadRecordingTime]);
+  }, [type, checkAndRequestPermissions]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -195,39 +178,24 @@ export default function ComposeMessageScreen() {
       // Attempt transcription for audio messages
       if (type === 'audio' && audioRecorder.uri) {
         const audioDuration = recordingDuration;
-        const totalAvailable = await StorageService.getTotalRecordingTime();
         
-        if (totalAvailable < audioDuration) {
-          // Not enough recording time - save audio without transcription
-          console.log('Insufficient recording time for transcription');
-          transcriptionStatus = 'none';
-          transcriptionError = `Not enough Recording Time. You need ${formatRecordingTime(audioDuration)} but only have ${formatRecordingTime(totalAvailable)} available.`;
-          
-          Alert.alert(
-            'Recording Time Low',
-            `Your audio message has been saved, but transcription requires more Recording Time.\n\nNeeded: ${formatRecordingTime(audioDuration)}\nAvailable: ${formatRecordingTime(totalAvailable)}\n\nYou can retry transcription later from the message details.`,
-            [{ text: 'OK' }]
-          );
+        console.log('Attempting to transcribe audio...');
+        setIsTranscribing(true);
+        transcriptionStatus = 'pending';
+        
+        const transcriptionResult = await transcribeAudio(audioRecorder.uri, audioDuration);
+        
+        if (transcriptionResult.success && transcriptionResult.transcript) {
+          transcript = transcriptionResult.transcript;
+          transcriptionStatus = 'completed';
+          console.log('Transcription successful:', transcript);
         } else {
-          // Sufficient recording time - attempt transcription
-          console.log('Attempting to transcribe audio...');
-          setIsTranscribing(true);
-          transcriptionStatus = 'pending';
-          
-          const transcriptionResult = await transcribeAudio(audioRecorder.uri, audioDuration);
-          
-          if (transcriptionResult.success && transcriptionResult.transcript) {
-            transcript = transcriptionResult.transcript;
-            transcriptionStatus = 'completed';
-            console.log('Transcription successful:', transcript);
-          } else {
-            transcriptionStatus = 'failed';
-            transcriptionError = transcriptionResult.error;
-            console.log('Transcription failed:', transcriptionResult.error);
-          }
-          
-          setIsTranscribing(false);
+          transcriptionStatus = 'failed';
+          transcriptionError = transcriptionResult.error;
+          console.log('Transcription failed:', transcriptionResult.error);
         }
+        
+        setIsTranscribing(false);
       }
       
       const message: Message = {
@@ -372,21 +340,6 @@ export default function ComposeMessageScreen() {
               </View>
             ) : (
               <>
-                {showLowTimeWarning && (
-                  <View style={[styles.warningBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.accent }]}>
-                    <IconSymbol
-                      ios_icon_name="exclamationmark.triangle.fill"
-                      android_material_icon_name="warning"
-                      size={20}
-                      color={theme.colors.accent}
-                    />
-                    <Text style={[styles.warningText, { color: theme.colors.text }]}>
-                      You have {formatRecordingTime(availableRecordingTime)} of Recording Time remaining. 
-                      Transcription uses Recording Time based on audio length.
-                    </Text>
-                  </View>
-                )}
-
                 <View style={[styles.recordingBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                   <IconSymbol
                     ios_icon_name={isRecording ? 'waveform' : 'mic.fill'}
@@ -437,10 +390,6 @@ export default function ComposeMessageScreen() {
                     {getTranscriptionMessage()}
                   </Text>
                 </View>
-
-                <Text style={[styles.hint, { color: theme.colors.textSecondary }]}>
-                  Available Recording Time: {formatRecordingTime(availableRecordingTime)}
-                </Text>
               </>
             )}
           </View>
@@ -534,21 +483,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-  },
-  warningBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    marginBottom: 24,
-    width: '100%',
-  },
-  warningText: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
   },
   recordingBox: {
     width: 200,
