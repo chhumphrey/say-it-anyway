@@ -30,6 +30,7 @@ export default function AddRecipientScreen() {
   const [dateOfDeath, setDateOfDeath] = useState('');
   const [notes, setNotes] = useState('');
   const [isDefault, setIsDefault] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const genderOptions: Gender[] = ['Male', 'Female', 'Non-Binary', 'Decline to State'];
 
@@ -59,37 +60,65 @@ export default function AddRecipientScreen() {
       return;
     }
 
-    const recipient: Recipient = {
-      id: generateUUID(),
-      name: name.trim(),
-      nickname: nickname.trim() || undefined,
-      gender,
-      photoUri,
-      dateOfBirth: dateOfBirth.trim() || undefined,
-      dateOfDeath: dateOfDeath.trim() || undefined,
-      notes: notes.trim() || undefined,
-      isDefault,
-    };
+    if (isSaving) {
+      console.log('Already saving, ignoring duplicate save request');
+      return;
+    }
 
-    console.log('Creating new recipient with ID:', recipient.id);
+    setIsSaving(true);
 
     try {
+      const newId = generateUUID();
+      console.log('Creating new recipient with ID:', newId);
+
+      const recipient: Recipient = {
+        id: newId,
+        name: name.trim(),
+        nickname: nickname.trim() || undefined,
+        gender,
+        photoUri,
+        dateOfBirth: dateOfBirth.trim() || undefined,
+        dateOfDeath: dateOfDeath.trim() || undefined,
+        notes: notes.trim() || undefined,
+        isDefault,
+      };
+
+      console.log('New recipient object:', JSON.stringify(recipient, null, 2));
+
       const recipients = await StorageService.getRecipients();
+      console.log('Current recipients before adding:', recipients.length);
       
       if (isDefault) {
-        recipients.forEach(r => r.isDefault = false);
+        recipients.forEach(r => {
+          r.isDefault = false;
+          console.log('Removing default flag from recipient:', r.id, r.name);
+        });
       }
       
       recipients.push(recipient);
-      await StorageService.saveRecipients(recipients);
-
-      console.log('Recipient saved successfully, total recipients:', recipients.length);
+      console.log('Recipients array after adding new one:', recipients.length);
       
+      await StorageService.saveRecipients(recipients);
+      console.log('Recipients saved successfully');
+
+      // Verify the save worked
+      const verifyRecipients = await StorageService.getRecipients();
+      console.log('Verification: Total recipients after save:', verifyRecipients.length);
+      const foundNewRecipient = verifyRecipients.find(r => r.id === newId);
+      console.log('Verification: New recipient found in storage:', foundNewRecipient ? 'YES' : 'NO');
+      
+      if (!foundNewRecipient) {
+        throw new Error('Recipient was not saved properly');
+      }
+
       // Navigate back to home screen
+      console.log('Navigating back to home screen');
       router.back();
     } catch (error) {
       console.error('Error saving recipient:', error);
       Alert.alert('Error', 'Failed to save recipient. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -107,8 +136,14 @@ export default function AddRecipientScreen() {
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
           Add Recipient
         </Text>
-        <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
-          <Text style={[styles.saveText, { color: theme.colors.primary }]}>Save</Text>
+        <TouchableOpacity 
+          onPress={handleSave} 
+          style={styles.saveButton}
+          disabled={isSaving}
+        >
+          <Text style={[styles.saveText, { color: isSaving ? theme.colors.textSecondary : theme.colors.primary }]}>
+            {isSaving ? 'Saving...' : 'Save'}
+          </Text>
         </TouchableOpacity>
       </View>
 

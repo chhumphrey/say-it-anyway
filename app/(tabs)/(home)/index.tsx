@@ -20,28 +20,41 @@ export default function HomeScreen() {
   const router = useRouter();
   const { theme, backgroundSettings } = useAppTheme();
   const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    console.log('HomeScreen: Initial mount, loading recipients');
     loadRecipients();
   }, []);
 
   useFocusEffect(
     React.useCallback(() => {
+      console.log('HomeScreen: Screen focused, reloading recipients');
       loadRecipients();
     }, [])
   );
 
   const loadRecipients = async () => {
-    const data = await StorageService.getRecipients();
-    console.log('Loaded recipients:', data.length, 'recipients');
-    data.forEach(r => console.log('  - Recipient:', r.id, r.name));
-    
-    const sorted = data.sort((a, b) => {
-      if (a.isDefault) return -1;
-      if (b.isDefault) return 1;
-      return (b.lastMessageTimestamp || 0) - (a.lastMessageTimestamp || 0);
-    });
-    setRecipients(sorted);
+    try {
+      setIsLoading(true);
+      console.log('HomeScreen: Loading recipients from storage...');
+      const data = await StorageService.getRecipients();
+      console.log('HomeScreen: Loaded', data.length, 'recipients');
+      data.forEach(r => console.log('  - Recipient:', r.id, r.name));
+      
+      const sorted = data.sort((a, b) => {
+        if (a.isDefault) return -1;
+        if (b.isDefault) return 1;
+        return (b.lastMessageTimestamp || 0) - (a.lastMessageTimestamp || 0);
+      });
+      
+      console.log('HomeScreen: Setting recipients state with', sorted.length, 'recipients');
+      setRecipients(sorted);
+    } catch (error) {
+      console.error('HomeScreen: Error loading recipients:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const formatLastMessage = (timestamp?: number) => {
@@ -68,12 +81,7 @@ export default function HomeScreen() {
 
   const backgroundOpacity = backgroundSettings.transparency / 100;
 
-  console.log('Home screen background:', { 
-    scene: backgroundSettings.scene, 
-    uri: backgroundUri,
-    transparency: backgroundSettings.transparency,
-    opacity: backgroundOpacity,
-  });
+  console.log('HomeScreen: Rendering with', recipients.length, 'recipients');
 
   return (
     <ImageBackground
@@ -114,7 +122,13 @@ export default function HomeScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {recipients.length === 0 ? (
+          {isLoading ? (
+            <View style={styles.loadingState}>
+              <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+                Loading...
+              </Text>
+            </View>
+          ) : recipients.length === 0 ? (
             <View style={styles.emptyState}>
               <IconSymbol
                 ios_icon_name="heart.fill"
@@ -131,54 +145,60 @@ export default function HomeScreen() {
             </View>
           ) : (
             <View style={styles.grid}>
-              {recipients.map((recipient) => (
-                <TouchableOpacity
-                  key={recipient.id}
-                  style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-                  onPress={() => router.push(`/recipient/${recipient.id}`)}
-                >
-                  <View style={styles.cardContent}>
-                    {recipient.photoUri ? (
-                      <Image source={{ uri: recipient.photoUri }} style={styles.photo} />
-                    ) : (
-                      <View style={[styles.photoPlaceholder, { backgroundColor: theme.colors.secondary }]}>
-                        <IconSymbol
-                          ios_icon_name="person.fill"
-                          android_material_icon_name="person"
-                          size={40}
-                          color={theme.colors.primary}
-                        />
-                      </View>
-                    )}
-                    
-                    <View style={styles.cardInfo}>
-                      <View style={styles.nameRow}>
-                        <Text style={[styles.name, { color: theme.colors.text }]} numberOfLines={1}>
-                          {recipient.name}
-                        </Text>
-                        {recipient.isDefault && (
+              {recipients.map((recipient) => {
+                console.log('HomeScreen: Rendering recipient card for:', recipient.id, recipient.name);
+                return (
+                  <TouchableOpacity
+                    key={recipient.id}
+                    style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+                    onPress={() => {
+                      console.log('HomeScreen: Navigating to recipient:', recipient.id);
+                      router.push(`/recipient/${recipient.id}`);
+                    }}
+                  >
+                    <View style={styles.cardContent}>
+                      {recipient.photoUri ? (
+                        <Image source={{ uri: recipient.photoUri }} style={styles.photo} />
+                      ) : (
+                        <View style={[styles.photoPlaceholder, { backgroundColor: theme.colors.secondary }]}>
                           <IconSymbol
-                            ios_icon_name="star.fill"
-                            android_material_icon_name="star"
-                            size={16}
-                            color={theme.colors.accent}
+                            ios_icon_name="person.fill"
+                            android_material_icon_name="person"
+                            size={40}
+                            color={theme.colors.primary}
                           />
-                        )}
-                      </View>
-                      
-                      {recipient.nickname && (
-                        <Text style={[styles.nickname, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-                          &quot;{recipient.nickname}&quot;
-                        </Text>
+                        </View>
                       )}
                       
-                      <Text style={[styles.lastMessage, { color: theme.colors.textSecondary }]}>
-                        {formatLastMessage(recipient.lastMessageTimestamp)}
-                      </Text>
+                      <View style={styles.cardInfo}>
+                        <View style={styles.nameRow}>
+                          <Text style={[styles.name, { color: theme.colors.text }]} numberOfLines={1}>
+                            {recipient.name}
+                          </Text>
+                          {recipient.isDefault && (
+                            <IconSymbol
+                              ios_icon_name="star.fill"
+                              android_material_icon_name="star"
+                              size={16}
+                              color={theme.colors.accent}
+                            />
+                          )}
+                        </View>
+                        
+                        {recipient.nickname && (
+                          <Text style={[styles.nickname, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                            &quot;{recipient.nickname}&quot;
+                          </Text>
+                        )}
+                        
+                        <Text style={[styles.lastMessage, { color: theme.colors.textSecondary }]}>
+                          {formatLastMessage(recipient.lastMessageTimestamp)}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
         </ScrollView>
@@ -239,6 +259,15 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingBottom: 120,
+  },
+  loadingState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 100,
+  },
+  loadingText: {
+    fontSize: 16,
   },
   emptyState: {
     flex: 1,

@@ -26,6 +26,7 @@ export default function EditProfileScreen() {
   const [location, setLocation] = useState('');
   const [preferredPronouns, setPreferredPronouns] = useState('');
   const [photoUri, setPhotoUri] = useState<string | undefined>();
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -33,7 +34,9 @@ export default function EditProfileScreen() {
 
   const loadProfile = async () => {
     try {
+      console.log('EditProfile: Loading profile...');
       const profile = await StorageService.getProfile();
+      console.log('EditProfile: Profile loaded:', profile);
       if (profile) {
         setName(profile.name);
         setEmail(profile.email || '');
@@ -43,7 +46,7 @@ export default function EditProfileScreen() {
         setPhotoUri(profile.photoUri);
       }
     } catch (error) {
-      console.error('Error loading profile:', error);
+      console.error('EditProfile: Error loading profile:', error);
     }
   };
 
@@ -73,22 +76,41 @@ export default function EditProfileScreen() {
       return;
     }
 
-    const profile: UserProfile = {
-      name: name.trim(),
-      email: email.trim() || undefined,
-      phone: phone.trim() || undefined,
-      location: location.trim() || undefined,
-      preferredPronouns: preferredPronouns.trim() || undefined,
-      photoUri,
-    };
+    if (isSaving) {
+      console.log('EditProfile: Already saving, ignoring duplicate save request');
+      return;
+    }
+
+    setIsSaving(true);
 
     try {
+      const profile: UserProfile = {
+        name: name.trim(),
+        email: email.trim() || undefined,
+        phone: phone.trim() || undefined,
+        location: location.trim() || undefined,
+        preferredPronouns: preferredPronouns.trim() || undefined,
+        photoUri,
+      };
+
+      console.log('EditProfile: Saving profile:', JSON.stringify(profile, null, 2));
       await StorageService.saveProfile(profile);
-      console.log('Profile saved successfully');
+      console.log('EditProfile: Profile saved successfully');
+
+      // Verify the save worked
+      const verifyProfile = await StorageService.getProfile();
+      console.log('EditProfile: Verification - Profile in storage:', verifyProfile ? 'YES' : 'NO');
+      
+      if (!verifyProfile) {
+        throw new Error('Profile was not saved properly');
+      }
+
       router.back();
     } catch (error) {
-      console.error('Error saving profile:', error);
+      console.error('EditProfile: Error saving profile:', error);
       Alert.alert('Error', 'Failed to save profile. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -106,8 +128,14 @@ export default function EditProfileScreen() {
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
           Edit Profile
         </Text>
-        <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
-          <Text style={[styles.saveText, { color: theme.colors.primary }]}>Save</Text>
+        <TouchableOpacity 
+          onPress={handleSave} 
+          style={styles.saveButton}
+          disabled={isSaving}
+        >
+          <Text style={[styles.saveText, { color: isSaving ? theme.colors.textSecondary : theme.colors.primary }]}>
+            {isSaving ? 'Saving...' : 'Save'}
+          </Text>
         </TouchableOpacity>
       </View>
 
