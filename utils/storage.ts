@@ -1,5 +1,5 @@
 
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Recipient, Message, UserProfile, ThemeName, CustomColors, BackgroundSettings } from '@/types';
 
 const RECIPIENTS_KEY = 'recipients';
@@ -13,7 +13,7 @@ export class StorageService {
   // Recipients
   static async getRecipients(): Promise<Recipient[]> {
     try {
-      const data = await SecureStore.getItemAsync(RECIPIENTS_KEY);
+      const data = await AsyncStorage.getItem(RECIPIENTS_KEY);
       const recipients = data ? JSON.parse(data) : [];
       console.log('StorageService.getRecipients:', recipients.length, 'recipients loaded');
       return recipients;
@@ -27,11 +27,13 @@ export class StorageService {
     try {
       console.log('StorageService.saveRecipients: Saving', recipients.length, 'recipients');
       recipients.forEach(r => console.log('  - Saving recipient:', r.id, r.name));
-      await SecureStore.setItemAsync(RECIPIENTS_KEY, JSON.stringify(recipients));
+      const jsonString = JSON.stringify(recipients);
+      console.log('StorageService.saveRecipients: JSON size:', jsonString.length, 'bytes');
+      await AsyncStorage.setItem(RECIPIENTS_KEY, jsonString);
       console.log('StorageService.saveRecipients: Successfully saved');
       
       // Verify the save
-      const verification = await SecureStore.getItemAsync(RECIPIENTS_KEY);
+      const verification = await AsyncStorage.getItem(RECIPIENTS_KEY);
       const verifiedRecipients = verification ? JSON.parse(verification) : [];
       console.log('StorageService.saveRecipients: Verification -', verifiedRecipients.length, 'recipients in storage');
     } catch (error) {
@@ -91,7 +93,7 @@ export class StorageService {
   // Messages
   static async getMessages(): Promise<Message[]> {
     try {
-      const data = await SecureStore.getItemAsync(MESSAGES_KEY);
+      const data = await AsyncStorage.getItem(MESSAGES_KEY);
       const messages = data ? JSON.parse(data) : [];
       console.log('StorageService.getMessages:', messages.length, 'messages loaded');
       return messages;
@@ -104,7 +106,9 @@ export class StorageService {
   static async saveMessages(messages: Message[]): Promise<void> {
     try {
       console.log('StorageService.saveMessages: Saving', messages.length, 'messages');
-      await SecureStore.setItemAsync(MESSAGES_KEY, JSON.stringify(messages));
+      const jsonString = JSON.stringify(messages);
+      console.log('StorageService.saveMessages: JSON size:', jsonString.length, 'bytes');
+      await AsyncStorage.setItem(MESSAGES_KEY, jsonString);
       console.log('StorageService.saveMessages: Successfully saved');
     } catch (error) {
       console.error('Error saving messages:', error);
@@ -174,7 +178,7 @@ export class StorageService {
   // Profile
   static async getProfile(): Promise<UserProfile | null> {
     try {
-      const data = await SecureStore.getItemAsync(PROFILE_KEY);
+      const data = await AsyncStorage.getItem(PROFILE_KEY);
       const profile = data ? JSON.parse(data) : null;
       console.log('StorageService.getProfile:', profile ? 'Profile loaded' : 'No profile found');
       return profile;
@@ -191,11 +195,13 @@ export class StorageService {
   static async saveProfile(profile: UserProfile): Promise<void> {
     try {
       console.log('StorageService.saveProfile: Saving profile for', profile.name);
-      await SecureStore.setItemAsync(PROFILE_KEY, JSON.stringify(profile));
+      const jsonString = JSON.stringify(profile);
+      console.log('StorageService.saveProfile: JSON size:', jsonString.length, 'bytes');
+      await AsyncStorage.setItem(PROFILE_KEY, jsonString);
       console.log('StorageService.saveProfile: Successfully saved');
       
       // Verify the save
-      const verification = await SecureStore.getItemAsync(PROFILE_KEY);
+      const verification = await AsyncStorage.getItem(PROFILE_KEY);
       const verifiedProfile = verification ? JSON.parse(verification) : null;
       console.log('StorageService.saveProfile: Verification -', verifiedProfile ? 'Profile exists in storage' : 'Profile NOT in storage');
     } catch (error) {
@@ -207,7 +213,7 @@ export class StorageService {
   // Theme
   static async getTheme(): Promise<ThemeName> {
     try {
-      const theme = await SecureStore.getItemAsync(THEME_KEY);
+      const theme = await AsyncStorage.getItem(THEME_KEY);
       const themeName = (theme as ThemeName) || 'Gentle Sky';
       console.log('StorageService.getTheme:', themeName);
       return themeName;
@@ -220,7 +226,7 @@ export class StorageService {
   static async saveTheme(theme: ThemeName): Promise<void> {
     try {
       console.log('StorageService.saveTheme: Saving theme', theme);
-      await SecureStore.setItemAsync(THEME_KEY, theme);
+      await AsyncStorage.setItem(THEME_KEY, theme);
       console.log('StorageService.saveTheme: Successfully saved');
     } catch (error) {
       console.error('Error saving theme:', error);
@@ -231,7 +237,7 @@ export class StorageService {
   // Custom Colors
   static async getCustomColors(): Promise<CustomColors | null> {
     try {
-      const data = await SecureStore.getItemAsync(CUSTOM_COLORS_KEY);
+      const data = await AsyncStorage.getItem(CUSTOM_COLORS_KEY);
       const colors = data ? JSON.parse(data) : null;
       console.log('StorageService.getCustomColors:', colors ? 'Custom colors loaded' : 'No custom colors');
       return colors;
@@ -244,7 +250,7 @@ export class StorageService {
   static async saveCustomColors(colors: CustomColors): Promise<void> {
     try {
       console.log('StorageService.saveCustomColors: Saving custom colors');
-      await SecureStore.setItemAsync(CUSTOM_COLORS_KEY, JSON.stringify(colors));
+      await AsyncStorage.setItem(CUSTOM_COLORS_KEY, JSON.stringify(colors));
       console.log('StorageService.saveCustomColors: Successfully saved');
     } catch (error) {
       console.error('Error saving custom colors:', error);
@@ -255,7 +261,7 @@ export class StorageService {
   // Background Settings
   static async getBackgroundSettings(): Promise<BackgroundSettings> {
     try {
-      const data = await SecureStore.getItemAsync(BACKGROUND_SETTINGS_KEY);
+      const data = await AsyncStorage.getItem(BACKGROUND_SETTINGS_KEY);
       const settings = data ? JSON.parse(data) : { scene: 'Ocean', transparency: 15 };
       console.log('StorageService.getBackgroundSettings:', settings);
       return settings;
@@ -268,7 +274,7 @@ export class StorageService {
   static async saveBackgroundSettings(settings: BackgroundSettings): Promise<void> {
     try {
       console.log('StorageService.saveBackgroundSettings: Saving settings', settings);
-      await SecureStore.setItemAsync(BACKGROUND_SETTINGS_KEY, JSON.stringify(settings));
+      await AsyncStorage.setItem(BACKGROUND_SETTINGS_KEY, JSON.stringify(settings));
       console.log('StorageService.saveBackgroundSettings: Successfully saved');
     } catch (error) {
       console.error('Error saving background settings:', error);
