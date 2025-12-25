@@ -73,17 +73,24 @@ export default function AddRecipientScreen() {
 
     console.log('Creating new recipient with ID:', recipient.id);
 
-    const recipients = await StorageService.getRecipients();
-    
-    if (isDefault) {
-      recipients.forEach(r => r.isDefault = false);
-    }
-    
-    recipients.push(recipient);
-    await StorageService.saveRecipients(recipients);
+    try {
+      const recipients = await StorageService.getRecipients();
+      
+      if (isDefault) {
+        recipients.forEach(r => r.isDefault = false);
+      }
+      
+      recipients.push(recipient);
+      await StorageService.saveRecipients(recipients);
 
-    console.log('Recipient saved successfully');
-    router.back();
+      console.log('Recipient saved successfully, total recipients:', recipients.length);
+      
+      // Navigate back to home screen
+      router.back();
+    } catch (error) {
+      console.error('Error saving recipient:', error);
+      Alert.alert('Error', 'Failed to save recipient. Please try again.');
+    }
   };
 
   return (

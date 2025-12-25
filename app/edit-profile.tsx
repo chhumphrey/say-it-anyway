@@ -32,13 +32,19 @@ export default function EditProfileScreen() {
   }, []);
 
   const loadProfile = async () => {
-    const profile = await StorageService.getUserProfile();
-    setName(profile.name);
-    setEmail(profile.email || '');
-    setPhone(profile.phone || '');
-    setLocation(profile.location || '');
-    setPreferredPronouns(profile.preferredPronouns || '');
-    setPhotoUri(profile.photoUri);
+    try {
+      const profile = await StorageService.getProfile();
+      if (profile) {
+        setName(profile.name);
+        setEmail(profile.email || '');
+        setPhone(profile.phone || '');
+        setLocation(profile.location || '');
+        setPreferredPronouns(profile.preferredPronouns || '');
+        setPhotoUri(profile.photoUri);
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    }
   };
 
   const pickImage = async () => {
@@ -76,8 +82,14 @@ export default function EditProfileScreen() {
       photoUri,
     };
 
-    await StorageService.saveUserProfile(profile);
-    router.back();
+    try {
+      await StorageService.saveProfile(profile);
+      console.log('Profile saved successfully');
+      router.back();
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      Alert.alert('Error', 'Failed to save profile. Please try again.');
+    }
   };
 
   return (

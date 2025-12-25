@@ -20,6 +20,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadProfile();
@@ -32,11 +33,19 @@ export default function ProfileScreen() {
   );
 
   const loadProfile = async () => {
-    const data = await StorageService.getUserProfile();
-    setProfile(data);
+    try {
+      console.log('Loading profile...');
+      const data = await StorageService.getProfile();
+      console.log('Profile loaded:', data);
+      setProfile(data);
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (!profile) {
+  if (loading) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]} edges={['top']}>
         <View style={styles.loadingContainer}>
@@ -72,81 +81,103 @@ export default function ProfileScreen() {
           Platform.OS !== 'ios' && styles.contentContainerWithTabBar
         ]}
       >
-        <View style={[styles.profileHeader, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          {profile.photoUri ? (
-            <Image source={{ uri: profile.photoUri }} style={styles.photo} />
-          ) : (
-            <View style={[styles.photoPlaceholder, { backgroundColor: theme.colors.secondary }]}>
+        {!profile ? (
+          <View style={styles.emptyState}>
+            <IconSymbol
+              ios_icon_name="person.circle"
+              android_material_icon_name="person"
+              size={80}
+              color={theme.colors.textSecondary}
+            />
+            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+              No profile yet
+            </Text>
+            <TouchableOpacity
+              style={[styles.createButton, { backgroundColor: theme.colors.primary }]}
+              onPress={() => router.push('/edit-profile')}
+            >
+              <Text style={styles.createButtonText}>Create Profile</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <View style={[styles.profileHeader, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+              {profile.photoUri ? (
+                <Image source={{ uri: profile.photoUri }} style={styles.photo} />
+              ) : (
+                <View style={[styles.photoPlaceholder, { backgroundColor: theme.colors.secondary }]}>
+                  <IconSymbol
+                    ios_icon_name="person.fill"
+                    android_material_icon_name="person"
+                    size={50}
+                    color={theme.colors.primary}
+                  />
+                </View>
+              )}
+              <Text style={[styles.name, { color: theme.colors.text }]}>{profile.name}</Text>
+              {profile.preferredPronouns && (
+                <Text style={[styles.pronouns, { color: theme.colors.textSecondary }]}>
+                  ({profile.preferredPronouns})
+                </Text>
+              )}
+            </View>
+
+            <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+              {profile.email && (
+                <View style={styles.infoRow}>
+                  <IconSymbol
+                    ios_icon_name="envelope.fill"
+                    android_material_icon_name="email"
+                    size={20}
+                    color={theme.colors.textSecondary}
+                  />
+                  <Text style={[styles.infoText, { color: theme.colors.text }]}>{profile.email}</Text>
+                </View>
+              )}
+              {profile.phone && (
+                <View style={styles.infoRow}>
+                  <IconSymbol
+                    ios_icon_name="phone.fill"
+                    android_material_icon_name="phone"
+                    size={20}
+                    color={theme.colors.textSecondary}
+                  />
+                  <Text style={[styles.infoText, { color: theme.colors.text }]}>{profile.phone}</Text>
+                </View>
+              )}
+              {profile.location && (
+                <View style={styles.infoRow}>
+                  <IconSymbol
+                    ios_icon_name="location.fill"
+                    android_material_icon_name="location-on"
+                    size={20}
+                    color={theme.colors.textSecondary}
+                  />
+                  <Text style={[styles.infoText, { color: theme.colors.text }]}>{profile.location}</Text>
+                </View>
+              )}
+              {!profile.email && !profile.phone && !profile.location && (
+                <View style={styles.emptyInfo}>
+                  <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                    Tap the edit button to add your information
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View style={[styles.infoBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
               <IconSymbol
-                ios_icon_name="person.fill"
-                android_material_icon_name="person"
-                size={50}
+                ios_icon_name="lock.fill"
+                android_material_icon_name="lock"
+                size={24}
                 color={theme.colors.primary}
               />
-            </View>
-          )}
-          <Text style={[styles.name, { color: theme.colors.text }]}>{profile.name}</Text>
-          {profile.preferredPronouns && (
-            <Text style={[styles.pronouns, { color: theme.colors.textSecondary }]}>
-              ({profile.preferredPronouns})
-            </Text>
-          )}
-        </View>
-
-        <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          {profile.email && (
-            <View style={styles.infoRow}>
-              <IconSymbol
-                ios_icon_name="envelope.fill"
-                android_material_icon_name="email"
-                size={20}
-                color={theme.colors.textSecondary}
-              />
-              <Text style={[styles.infoText, { color: theme.colors.text }]}>{profile.email}</Text>
-            </View>
-          )}
-          {profile.phone && (
-            <View style={styles.infoRow}>
-              <IconSymbol
-                ios_icon_name="phone.fill"
-                android_material_icon_name="phone"
-                size={20}
-                color={theme.colors.textSecondary}
-              />
-              <Text style={[styles.infoText, { color: theme.colors.text }]}>{profile.phone}</Text>
-            </View>
-          )}
-          {profile.location && (
-            <View style={styles.infoRow}>
-              <IconSymbol
-                ios_icon_name="location.fill"
-                android_material_icon_name="location-on"
-                size={20}
-                color={theme.colors.textSecondary}
-              />
-              <Text style={[styles.infoText, { color: theme.colors.text }]}>{profile.location}</Text>
-            </View>
-          )}
-          {!profile.email && !profile.phone && !profile.location && (
-            <View style={styles.emptyInfo}>
-              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                Tap the edit button to add your information
+              <Text style={[styles.infoBoxText, { color: theme.colors.textSecondary }]}>
+                Your profile information is stored securely on your device and is never shared.
               </Text>
             </View>
-          )}
-        </View>
-
-        <View style={[styles.infoBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <IconSymbol
-            ios_icon_name="lock.fill"
-            android_material_icon_name="lock"
-            size={24}
-            color={theme.colors.primary}
-          />
-          <Text style={[styles.infoBoxText, { color: theme.colors.textSecondary }]}>
-            Your profile information is stored securely on your device and is never shared.
-          </Text>
-        </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -188,6 +219,28 @@ const styles = StyleSheet.create({
   },
   contentContainerWithTabBar: {
     paddingBottom: 100,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 100,
+  },
+  emptyText: {
+    fontSize: 16,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  createButton: {
+    marginTop: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 24,
+  },
+  createButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   profileHeader: {
     alignItems: 'center',
@@ -237,10 +290,6 @@ const styles = StyleSheet.create({
   emptyInfo: {
     alignItems: 'center',
     paddingVertical: 20,
-  },
-  emptyText: {
-    fontSize: 14,
-    textAlign: 'center',
   },
   infoBox: {
     flexDirection: 'row',

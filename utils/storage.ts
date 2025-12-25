@@ -24,6 +24,7 @@ export class StorageService {
   static async saveRecipients(recipients: Recipient[]): Promise<void> {
     try {
       await SecureStore.setItemAsync(RECIPIENTS_KEY, JSON.stringify(recipients));
+      console.log('Recipients saved successfully:', recipients.length, 'recipients');
     } catch (error) {
       console.error('Error saving recipients:', error);
     }
@@ -113,6 +114,10 @@ export class StorageService {
       console.error('Error loading profile:', error);
       return null;
     }
+  }
+
+  static async getUserProfile(): Promise<UserProfile | null> {
+    return this.getProfile();
   }
 
   static async saveProfile(profile: UserProfile): Promise<void> {
