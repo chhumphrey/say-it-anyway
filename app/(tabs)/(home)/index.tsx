@@ -14,7 +14,6 @@ import { Recipient } from '@/types';
 import { StorageService } from '@/utils/storage';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
-import { AdBanner } from '@/components/AdBanner';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -94,9 +93,6 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Ad Banner - only shown for free tier */}
-        <AdBanner screenName="home" />
-
         {recipients.length === 0 ? (
           <View style={styles.emptyState}>
             <IconSymbol
