@@ -23,7 +23,7 @@ export interface Message {
   type: 'text' | 'audio';
   textContent?: string;
   audioUri?: string;
-  audioDuration?: number; // Duration in seconds
+  audioDuration?: number;
   transcript?: string;
   transcriptionStatus?: TranscriptionStatus;
   transcriptionError?: string;
@@ -53,6 +53,15 @@ export type ThemeName =
   | 'Ruby Jewel'
   | 'Custom';
 
+export type BackgroundScene = 
+  | 'Ocean' 
+  | 'Forest' 
+  | 'Mountains' 
+  | 'Moody Sky' 
+  | 'Dawn' 
+  | 'Dusk'
+  | 'Custom Photo';
+
 export interface CustomColors {
   background: string;
   card: string;
@@ -78,4 +87,9 @@ export interface AppTheme {
     border: string;
     danger: string;
   };
+}
+
+export interface BackgroundSettings {
+  scene: BackgroundScene;
+  customPhotoUri?: string;
 }

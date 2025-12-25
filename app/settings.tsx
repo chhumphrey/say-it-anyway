@@ -9,16 +9,18 @@ import {
   TextInput,
   Modal,
   ImageBackground,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
-import { ThemeName, themeNames, themes } from '@/utils/themes';
-import { CustomColors } from '@/types';
+import { ThemeName, themeNames, themes, backgroundScenes, getSceneImageUrl } from '@/utils/themes';
+import { CustomColors, BackgroundScene } from '@/types';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { theme, themeName, customColors, setTheme, setCustomColors } = useAppTheme();
+  const { theme, themeName, customColors, backgroundSettings, setTheme, setCustomColors, setBackgroundSettings } = useAppTheme();
   const [showCustomColorPicker, setShowCustomColorPicker] = useState(false);
   const [editingColors, setEditingColors] = useState<CustomColors>(
     customColors || themes['Soft Lavender'].colors
@@ -38,6 +40,40 @@ export default function SettingsScreen() {
     setShowCustomColorPicker(false);
   };
 
+  const handleSceneSelect = (scene: BackgroundScene) => {
+    console.log('Scene selected:', scene);
+    if (scene === 'Custom Photo') {
+      pickBackgroundImage();
+    } else {
+      setBackgroundSettings({ scene, customPhotoUri: undefined });
+    }
+  };
+
+  const pickBackgroundImage = async () => {
+    try {
+      console.log('Launching image picker for background');
+      
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      console.log('Image picker result:', result);
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const uri = result.assets[0].uri;
+        console.log('Selected background image:', uri);
+        setBackgroundSettings({ scene: 'Custom Photo', customPhotoUri: uri });
+      } else {
+        console.log('Image picker was canceled');
+      }
+    } catch (error) {
+      console.error('Error picking background image:', error);
+      Alert.alert('Error', 'Failed to select background image. Please try again.');
+    }
+  };
+
   const ColorInput = ({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) => (
     <View style={styles.colorInputContainer}>
       <Text style={[styles.colorLabel, { color: theme.colors.text }]}>{label}</Text>
@@ -55,9 +91,13 @@ export default function SettingsScreen() {
     </View>
   );
 
+  const currentBackgroundUri = backgroundSettings.scene === 'Custom Photo' && backgroundSettings.customPhotoUri
+    ? backgroundSettings.customPhotoUri
+    : getSceneImageUrl(backgroundSettings.scene);
+
   return (
     <ImageBackground
-      source={{ uri: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&q=80' }}
+      source={{ uri: currentBackgroundUri }}
       style={styles.backgroundImage}
       imageStyle={{ opacity: 0.15 }}
     >
@@ -147,6 +187,63 @@ export default function SettingsScreen() {
             })}
           </View>
 
+          <Text style={[styles.mainSectionTitle, { color: theme.colors.text, marginTop: 32 }]}>
+            Background Scene
+          </Text>
+          <Text style={[styles.sectionDescription, { color: theme.colors.textSecondary }]}>
+            Choose a calming background scene or use your own photo
+          </Text>
+
+          <View style={styles.scenesGrid}>
+            {backgroundScenes.map((scene, index) => {
+              const isSelected = scene === backgroundSettings.scene;
+              
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.sceneCard,
+                    { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
+                    isSelected && { borderColor: theme.colors.primary, borderWidth: 3 },
+                  ]}
+                  onPress={() => handleSceneSelect(scene)}
+                >
+                  <View style={styles.sceneHeader}>
+                    <Text style={[styles.sceneName, { color: theme.colors.text }]}>
+                      {scene}
+                    </Text>
+                    {isSelected && (
+                      <IconSymbol
+                        ios_icon_name="checkmark.circle.fill"
+                        android_material_icon_name="check-circle"
+                        size={24}
+                        color={theme.colors.primary}
+                      />
+                    )}
+                  </View>
+                  
+                  {scene === 'Custom Photo' ? (
+                    <View style={[styles.customPhotoPreview, { backgroundColor: theme.colors.secondary }]}>
+                      <IconSymbol
+                        ios_icon_name="photo.fill"
+                        android_material_icon_name="photo"
+                        size={32}
+                        color={theme.colors.primary}
+                      />
+                      <Text style={[styles.customPhotoText, { color: theme.colors.textSecondary }]}>
+                        {backgroundSettings.customPhotoUri ? 'Custom Photo' : 'Select Photo'}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.sceneIconContainer}>
+                      {getSceneIcon(scene, theme.colors.primary)}
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
           <View style={[styles.infoBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, marginTop: 24 }]}>
             <IconSymbol
               ios_icon_name="info.circle.fill"
@@ -155,7 +252,7 @@ export default function SettingsScreen() {
               color={theme.colors.primary}
             />
             <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-              Your theme preference is saved locally on your device and will be remembered when you return. The calming background image adapts to your chosen theme.
+              Your theme and background preferences are saved locally on your device. The background adapts to your chosen color palette for a harmonious experience.
             </Text>
           </View>
         </ScrollView>
@@ -242,6 +339,25 @@ export default function SettingsScreen() {
       </View>
     </ImageBackground>
   );
+}
+
+function getSceneIcon(scene: BackgroundScene, color: string) {
+  switch (scene) {
+    case 'Ocean':
+      return <IconSymbol ios_icon_name="water.waves" android_material_icon_name="waves" size={32} color={color} />;
+    case 'Forest':
+      return <IconSymbol ios_icon_name="tree.fill" android_material_icon_name="park" size={32} color={color} />;
+    case 'Mountains':
+      return <IconSymbol ios_icon_name="mountain.2.fill" android_material_icon_name="terrain" size={32} color={color} />;
+    case 'Moody Sky':
+      return <IconSymbol ios_icon_name="cloud.fill" android_material_icon_name="cloud" size={32} color={color} />;
+    case 'Dawn':
+      return <IconSymbol ios_icon_name="sunrise.fill" android_material_icon_name="wb-twilight" size={32} color={color} />;
+    case 'Dusk':
+      return <IconSymbol ios_icon_name="sunset.fill" android_material_icon_name="wb-twilight" size={32} color={color} />;
+    default:
+      return <IconSymbol ios_icon_name="photo.fill" android_material_icon_name="photo" size={32} color={color} />;
+  }
 }
 
 const styles = StyleSheet.create({
@@ -343,6 +459,38 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  scenesGrid: {
+    gap: 16,
+  },
+  sceneCard: {
+    borderRadius: 12,
+    borderWidth: 2,
+    padding: 16,
+  },
+  sceneHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sceneName: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  sceneIconContainer: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  customPhotoPreview: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 8,
+  },
+  customPhotoText: {
+    fontSize: 14,
+    marginTop: 8,
   },
   infoBox: {
     flexDirection: 'row',

@@ -1,12 +1,13 @@
 
 import * as SecureStore from 'expo-secure-store';
-import { Recipient, Message, UserProfile, ThemeName, CustomColors } from '@/types';
+import { Recipient, Message, UserProfile, ThemeName, CustomColors, BackgroundSettings } from '@/types';
 
 const RECIPIENTS_KEY = 'recipients';
 const MESSAGES_KEY = 'messages';
 const PROFILE_KEY = 'profile';
 const THEME_KEY = 'theme';
 const CUSTOM_COLORS_KEY = 'custom_colors';
+const BACKGROUND_SETTINGS_KEY = 'background_settings';
 
 export class StorageService {
   // Recipients
@@ -153,6 +154,25 @@ export class StorageService {
       await SecureStore.setItemAsync(CUSTOM_COLORS_KEY, JSON.stringify(colors));
     } catch (error) {
       console.error('Error saving custom colors:', error);
+    }
+  }
+
+  // Background Settings
+  static async getBackgroundSettings(): Promise<BackgroundSettings> {
+    try {
+      const data = await SecureStore.getItemAsync(BACKGROUND_SETTINGS_KEY);
+      return data ? JSON.parse(data) : { scene: 'Ocean' };
+    } catch (error) {
+      console.error('Error loading background settings:', error);
+      return { scene: 'Ocean' };
+    }
+  }
+
+  static async saveBackgroundSettings(settings: BackgroundSettings): Promise<void> {
+    try {
+      await SecureStore.setItemAsync(BACKGROUND_SETTINGS_KEY, JSON.stringify(settings));
+    } catch (error) {
+      console.error('Error saving background settings:', error);
     }
   }
 }

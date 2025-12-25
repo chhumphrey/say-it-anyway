@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AppTheme, ThemeName, CustomColors } from '@/types';
+import { AppTheme, ThemeName, CustomColors, BackgroundSettings } from '@/types';
 import { getTheme } from '@/utils/themes';
 import { StorageService } from '@/utils/storage';
 
@@ -8,8 +8,10 @@ interface ThemeContextType {
   theme: AppTheme;
   themeName: ThemeName;
   customColors: CustomColors | null;
+  backgroundSettings: BackgroundSettings;
   setTheme: (themeName: ThemeName) => void;
   setCustomColors: (colors: CustomColors) => void;
+  setBackgroundSettings: (settings: BackgroundSettings) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -18,6 +20,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [themeName, setThemeName] = useState<ThemeName>('Gentle Sky');
   const [theme, setThemeState] = useState<AppTheme>(getTheme('Gentle Sky'));
   const [customColors, setCustomColorsState] = useState<CustomColors | null>(null);
+  const [backgroundSettings, setBackgroundSettingsState] = useState<BackgroundSettings>({ scene: 'Ocean' });
 
   useEffect(() => {
     loadTheme();
@@ -26,9 +29,13 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const loadTheme = async () => {
     const savedTheme = await StorageService.getTheme();
     const savedCustomColors = await StorageService.getCustomColors();
+    const savedBackgroundSettings = await StorageService.getBackgroundSettings();
+    
+    console.log('Loaded theme settings:', { savedTheme, savedBackgroundSettings });
     
     setThemeName(savedTheme);
     setCustomColorsState(savedCustomColors);
+    setBackgroundSettingsState(savedBackgroundSettings);
     
     if (savedTheme === 'Custom' && savedCustomColors) {
       setThemeState({
@@ -41,6 +48,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const setTheme = async (newThemeName: ThemeName) => {
+    console.log('Setting theme:', newThemeName);
     setThemeName(newThemeName);
     
     if (newThemeName === 'Custom' && customColors) {
@@ -56,6 +64,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const setCustomColors = async (colors: CustomColors) => {
+    console.log('Setting custom colors:', colors);
     setCustomColorsState(colors);
     await StorageService.saveCustomColors(colors);
     
@@ -67,8 +76,22 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const setBackgroundSettings = async (settings: BackgroundSettings) => {
+    console.log('Setting background settings:', settings);
+    setBackgroundSettingsState(settings);
+    await StorageService.saveBackgroundSettings(settings);
+  };
+
   return (
-    <ThemeContext.Provider value={{ theme, themeName, customColors, setTheme, setCustomColors }}>
+    <ThemeContext.Provider value={{ 
+      theme, 
+      themeName, 
+      customColors, 
+      backgroundSettings,
+      setTheme, 
+      setCustomColors,
+      setBackgroundSettings,
+    }}>
       {children}
     </ThemeContext.Provider>
   );

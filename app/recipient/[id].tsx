@@ -15,6 +15,7 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Recipient, Message } from '@/types';
 import { StorageService } from '@/utils/storage';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import { getSceneImageUrl } from '@/utils/themes';
 import { IconSymbol } from '@/components/IconSymbol';
 
 interface AudioPlayerState {
@@ -24,7 +25,7 @@ interface AudioPlayerState {
 export default function RecipientDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
-  const { theme } = useAppTheme();
+  const { theme, backgroundSettings } = useAppTheme();
   const [recipient, setRecipient] = useState<Recipient | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [showHidden, setShowHidden] = useState(false);
@@ -64,7 +65,6 @@ export default function RecipientDetailScreen() {
     loadData();
   }, [loadData]);
 
-  // Use useFocusEffect to reload data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       console.log('RecipientDetailScreen focused');
@@ -115,10 +115,14 @@ export default function RecipientDetailScreen() {
 
   console.log('Visible messages:', visibleMessages.length);
 
+  const backgroundUri = backgroundSettings.scene === 'Custom Photo' && backgroundSettings.customPhotoUri
+    ? backgroundSettings.customPhotoUri
+    : getSceneImageUrl(backgroundSettings.scene);
+
   if (isLoading) {
     return (
       <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&q=80' }}
+        source={{ uri: backgroundUri }}
         style={styles.backgroundImage}
         imageStyle={{ opacity: 0.15 }}
       >
@@ -149,7 +153,7 @@ export default function RecipientDetailScreen() {
     console.log('Recipient not found, showing error');
     return (
       <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&q=80' }}
+        source={{ uri: backgroundUri }}
         style={styles.backgroundImage}
         imageStyle={{ opacity: 0.15 }}
       >
@@ -186,7 +190,7 @@ export default function RecipientDetailScreen() {
 
   return (
     <ImageBackground
-      source={{ uri: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&q=80' }}
+      source={{ uri: backgroundUri }}
       style={styles.backgroundImage}
       imageStyle={{ opacity: 0.15 }}
     >
@@ -368,7 +372,6 @@ function MessageCard({
     setTruncatedTranscriptHeight(height);
   };
 
-  // Text needs truncation if full height is greater than truncated height
   const textNeedsTruncation = textHeight > truncatedTextHeight && truncatedTextHeight > 0;
   const transcriptNeedsTruncation = transcriptHeight > truncatedTranscriptHeight && truncatedTranscriptHeight > 0;
 
@@ -416,7 +419,6 @@ function MessageCard({
 
       {message.textContent && (
         <View>
-          {/* Hidden full text for measurement */}
           <View style={styles.hiddenMeasurement}>
             <Text
               style={[styles.messageText, { color: theme.colors.text }]}
@@ -426,7 +428,6 @@ function MessageCard({
             </Text>
           </View>
 
-          {/* Hidden truncated text for measurement */}
           <View style={styles.hiddenMeasurement}>
             <Text
               style={[styles.messageText, { color: theme.colors.text }]}
@@ -437,7 +438,6 @@ function MessageCard({
             </Text>
           </View>
 
-          {/* Visible text */}
           <Text
             style={[styles.messageText, { color: theme.colors.text }]}
             numberOfLines={isExpanded ? undefined : 4}
@@ -461,7 +461,6 @@ function MessageCard({
             Transcript:
           </Text>
 
-          {/* Hidden full transcript for measurement */}
           <View style={styles.hiddenMeasurement}>
             <Text
               style={[styles.transcriptText, { color: theme.colors.text }]}
@@ -471,7 +470,6 @@ function MessageCard({
             </Text>
           </View>
 
-          {/* Hidden truncated transcript for measurement */}
           <View style={styles.hiddenMeasurement}>
             <Text
               style={[styles.transcriptText, { color: theme.colors.text }]}
@@ -482,7 +480,6 @@ function MessageCard({
             </Text>
           </View>
 
-          {/* Visible transcript */}
           <Text
             style={[styles.transcriptText, { color: theme.colors.text }]}
             numberOfLines={isExpanded ? undefined : 4}
@@ -531,7 +528,6 @@ function AudioPlayer({ audioUri, audioDuration, theme, formatDuration }: AudioPl
       console.log('Pausing audio');
       player.pause();
     } else {
-      // If at the end, restart from beginning
       if (status.currentTime >= (status.duration || 0) - 0.1) {
         console.log('Restarting from beginning');
         player.seekTo(0);

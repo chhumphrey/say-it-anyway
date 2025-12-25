@@ -1,5 +1,5 @@
 
-import { AppTheme, ThemeName } from '@/types';
+import { AppTheme, ThemeName, BackgroundScene, CustomColors } from '@/types';
 
 export const themes: Record<ThemeName, AppTheme> = {
   'Soft Lavender': {
@@ -177,3 +177,80 @@ export const getTheme = (themeName: ThemeName): AppTheme => {
 };
 
 export const themeNames: ThemeName[] = Object.keys(themes) as ThemeName[];
+
+export const backgroundScenes: BackgroundScene[] = [
+  'Ocean',
+  'Forest',
+  'Mountains',
+  'Moody Sky',
+  'Dawn',
+  'Dusk',
+  'Custom Photo',
+];
+
+// Generate a background gradient based on scene and color palette
+export const generateSceneBackground = (scene: BackgroundScene, colors: CustomColors): string => {
+  console.log('Generating background for scene:', scene);
+  
+  switch (scene) {
+    case 'Ocean':
+      // Blue gradient from light to deep
+      return `linear-gradient(180deg, ${colors.secondary}40, ${colors.primary}60)`;
+    
+    case 'Forest':
+      // Green gradient with earthy tones
+      return `linear-gradient(180deg, ${colors.accent}30, ${colors.primary}50)`;
+    
+    case 'Mountains':
+      // Gray-blue gradient for mountain peaks
+      return `linear-gradient(180deg, ${colors.background}, ${colors.secondary}50)`;
+    
+    case 'Moody Sky':
+      // Darker, more dramatic gradient
+      return `linear-gradient(180deg, ${colors.primary}50, ${colors.accent}70)`;
+    
+    case 'Dawn':
+      // Warm sunrise colors
+      return `linear-gradient(180deg, ${colors.secondary}30, ${colors.accent}40)`;
+    
+    case 'Dusk':
+      // Warm sunset colors with deeper tones
+      return `linear-gradient(180deg, ${colors.accent}50, ${colors.primary}60)`;
+    
+    case 'Custom Photo':
+      // No gradient for custom photos
+      return 'transparent';
+    
+    default:
+      return `linear-gradient(180deg, ${colors.background}, ${colors.secondary}40)`;
+  }
+};
+
+// Get Unsplash image URL for scene
+export const getSceneImageUrl = (scene: BackgroundScene): string => {
+  switch (scene) {
+    case 'Ocean':
+      return 'https://images.unsplash.com/photo-1505142468610-359e7d316be0?w=1200&q=80';
+    
+    case 'Forest':
+      return 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1200&q=80';
+    
+    case 'Mountains':
+      return 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&q=80';
+    
+    case 'Moody Sky':
+      return 'https://images.unsplash.com/photo-1534088568595-a066f410bcda?w=1200&q=80';
+    
+    case 'Dawn':
+      return 'https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?w=1200&q=80';
+    
+    case 'Dusk':
+      return 'https://images.unsplash.com/photo-1495567720989-cebdbdd97913?w=1200&q=80';
+    
+    case 'Custom Photo':
+      return '';
+    
+    default:
+      return 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&q=80';
+  }
+};

@@ -13,18 +13,18 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Recipient } from '@/types';
 import { StorageService } from '@/utils/storage';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import { getSceneImageUrl } from '@/utils/themes';
 import { IconSymbol } from '@/components/IconSymbol';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { theme } = useAppTheme();
+  const { theme, backgroundSettings } = useAppTheme();
   const [recipients, setRecipients] = useState<Recipient[]>([]);
 
   useEffect(() => {
     loadRecipients();
   }, []);
 
-  // Use useFocusEffect to reload recipients when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
       loadRecipients();
@@ -59,9 +59,15 @@ export default function HomeScreen() {
     return date.toLocaleDateString();
   };
 
+  const backgroundUri = backgroundSettings.scene === 'Custom Photo' && backgroundSettings.customPhotoUri
+    ? backgroundSettings.customPhotoUri
+    : getSceneImageUrl(backgroundSettings.scene);
+
+  console.log('Home screen background:', { scene: backgroundSettings.scene, uri: backgroundUri });
+
   return (
     <ImageBackground
-      source={{ uri: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&q=80' }}
+      source={{ uri: backgroundUri }}
       style={styles.backgroundImage}
       imageStyle={{ opacity: 0.15 }}
     >
