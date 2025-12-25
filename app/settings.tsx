@@ -17,6 +17,7 @@ import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { ThemeName, themeNames, themes, backgroundScenes, getSceneImageUrl } from '@/utils/themes';
 import { CustomColors, BackgroundScene } from '@/types';
+import Slider from '@react-native-community/slider';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -45,8 +46,20 @@ export default function SettingsScreen() {
     if (scene === 'Custom Photo') {
       pickBackgroundImage();
     } else {
-      setBackgroundSettings({ scene, customPhotoUri: undefined });
+      setBackgroundSettings({ 
+        scene, 
+        customPhotoUri: undefined,
+        transparency: backgroundSettings.transparency,
+      });
     }
+  };
+
+  const handleTransparencyChange = (value: number) => {
+    console.log('Transparency changed to:', value);
+    setBackgroundSettings({
+      ...backgroundSettings,
+      transparency: value,
+    });
   };
 
   const pickBackgroundImage = async () => {
@@ -64,7 +77,11 @@ export default function SettingsScreen() {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const uri = result.assets[0].uri;
         console.log('Selected background image:', uri);
-        setBackgroundSettings({ scene: 'Custom Photo', customPhotoUri: uri });
+        setBackgroundSettings({ 
+          scene: 'Custom Photo', 
+          customPhotoUri: uri,
+          transparency: backgroundSettings.transparency,
+        });
       } else {
         console.log('Image picker was canceled');
       }
@@ -95,11 +112,13 @@ export default function SettingsScreen() {
     ? backgroundSettings.customPhotoUri
     : getSceneImageUrl(backgroundSettings.scene);
 
+  const backgroundOpacity = backgroundSettings.transparency / 100;
+
   return (
     <ImageBackground
       source={{ uri: currentBackgroundUri }}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.15 }}
+      imageStyle={{ opacity: backgroundOpacity }}
     >
       <View style={[styles.container, { backgroundColor: 'transparent' }]}>
         <View style={[styles.header, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
@@ -242,6 +261,45 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
               );
             })}
+          </View>
+
+          <Text style={[styles.mainSectionTitle, { color: theme.colors.text, marginTop: 32 }]}>
+            Background Transparency
+          </Text>
+          <Text style={[styles.sectionDescription, { color: theme.colors.textSecondary }]}>
+            Adjust how visible the background image is
+          </Text>
+
+          <View style={[styles.transparencyCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <View style={styles.transparencyHeader}>
+              <Text style={[styles.transparencyLabel, { color: theme.colors.text }]}>
+                Transparency
+              </Text>
+              <Text style={[styles.transparencyValue, { color: theme.colors.primary }]}>
+                {Math.round(backgroundSettings.transparency)}%
+              </Text>
+            </View>
+            
+            <Slider
+              style={styles.slider}
+              minimumValue={0}
+              maximumValue={100}
+              step={1}
+              value={backgroundSettings.transparency}
+              onValueChange={handleTransparencyChange}
+              minimumTrackTintColor={theme.colors.primary}
+              maximumTrackTintColor={theme.colors.border}
+              thumbTintColor={theme.colors.primary}
+            />
+            
+            <View style={styles.sliderLabels}>
+              <Text style={[styles.sliderLabel, { color: theme.colors.textSecondary }]}>
+                Hidden
+              </Text>
+              <Text style={[styles.sliderLabel, { color: theme.colors.textSecondary }]}>
+                Visible
+              </Text>
+            </View>
           </View>
 
           <View style={[styles.infoBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, marginTop: 24 }]}>
@@ -491,6 +549,37 @@ const styles = StyleSheet.create({
   customPhotoText: {
     fontSize: 14,
     marginTop: 8,
+  },
+  transparencyCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 20,
+  },
+  transparencyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  transparencyLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  transparencyValue: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  slider: {
+    width: '100%',
+    height: 40,
+  },
+  sliderLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  sliderLabel: {
+    fontSize: 12,
   },
   infoBox: {
     flexDirection: 'row',

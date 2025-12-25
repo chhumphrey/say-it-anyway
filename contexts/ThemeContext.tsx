@@ -20,7 +20,10 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [themeName, setThemeName] = useState<ThemeName>('Gentle Sky');
   const [theme, setThemeState] = useState<AppTheme>(getTheme('Gentle Sky'));
   const [customColors, setCustomColorsState] = useState<CustomColors | null>(null);
-  const [backgroundSettings, setBackgroundSettingsState] = useState<BackgroundSettings>({ scene: 'Ocean' });
+  const [backgroundSettings, setBackgroundSettingsState] = useState<BackgroundSettings>({ 
+    scene: 'Ocean',
+    transparency: 15, // Default 15% transparency
+  });
 
   useEffect(() => {
     loadTheme();
@@ -35,7 +38,13 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     
     setThemeName(savedTheme);
     setCustomColorsState(savedCustomColors);
-    setBackgroundSettingsState(savedBackgroundSettings);
+    
+    // Ensure transparency is set, default to 15 if not present
+    const settingsWithTransparency = {
+      ...savedBackgroundSettings,
+      transparency: savedBackgroundSettings.transparency ?? 15,
+    };
+    setBackgroundSettingsState(settingsWithTransparency);
     
     if (savedTheme === 'Custom' && savedCustomColors) {
       setThemeState({

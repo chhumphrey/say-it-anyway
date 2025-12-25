@@ -92,4 +92,5 @@ export interface AppTheme {
 export interface BackgroundSettings {
   scene: BackgroundScene;
   customPhotoUri?: string;
+  transparency: number; // 0-100, percentage of transparency
 }

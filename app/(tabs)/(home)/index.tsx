@@ -63,13 +63,20 @@ export default function HomeScreen() {
     ? backgroundSettings.customPhotoUri
     : getSceneImageUrl(backgroundSettings.scene);
 
-  console.log('Home screen background:', { scene: backgroundSettings.scene, uri: backgroundUri });
+  const backgroundOpacity = backgroundSettings.transparency / 100;
+
+  console.log('Home screen background:', { 
+    scene: backgroundSettings.scene, 
+    uri: backgroundUri,
+    transparency: backgroundSettings.transparency,
+    opacity: backgroundOpacity,
+  });
 
   return (
     <ImageBackground
       source={{ uri: backgroundUri }}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.15 }}
+      imageStyle={{ opacity: backgroundOpacity }}
     >
       <View style={[styles.container, { backgroundColor: 'transparent' }]}>
         <View style={[styles.header, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background }]}>

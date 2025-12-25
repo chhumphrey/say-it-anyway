@@ -119,12 +119,14 @@ export default function RecipientDetailScreen() {
     ? backgroundSettings.customPhotoUri
     : getSceneImageUrl(backgroundSettings.scene);
 
+  const backgroundOpacity = backgroundSettings.transparency / 100;
+
   if (isLoading) {
     return (
       <ImageBackground
         source={{ uri: backgroundUri }}
         style={styles.backgroundImage}
-        imageStyle={{ opacity: 0.15 }}
+        imageStyle={{ opacity: backgroundOpacity }}
       >
         <View style={[styles.container, { backgroundColor: 'transparent' }]}>
           <View style={[styles.header, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
@@ -155,7 +157,7 @@ export default function RecipientDetailScreen() {
       <ImageBackground
         source={{ uri: backgroundUri }}
         style={styles.backgroundImage}
-        imageStyle={{ opacity: 0.15 }}
+        imageStyle={{ opacity: backgroundOpacity }}
       >
         <View style={[styles.container, { backgroundColor: 'transparent' }]}>
           <View style={[styles.header, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
@@ -192,7 +194,7 @@ export default function RecipientDetailScreen() {
     <ImageBackground
       source={{ uri: backgroundUri }}
       style={styles.backgroundImage}
-      imageStyle={{ opacity: 0.15 }}
+      imageStyle={{ opacity: backgroundOpacity }}
     >
       <View style={[styles.container, { backgroundColor: 'transparent' }]}>
         <View style={[styles.header, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
