@@ -7,7 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Alert,
+  ImageBackground,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Recipient } from '@/types';
@@ -60,124 +60,135 @@ export default function HomeScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          Say It Anyway
-        </Text>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => router.push('/support-resources')}
-          >
-            <Text style={[styles.emergencyButton, { color: theme.colors.danger }]}>
-              !!!
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => router.push('/add-recipient')}
-          >
-            <IconSymbol
-              ios_icon_name="plus.circle.fill"
-              android_material_icon_name="add-circle"
-              size={32}
-              color={theme.colors.primary}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {recipients.length === 0 ? (
-          <View style={styles.emptyState}>
-            <IconSymbol
-              ios_icon_name="heart.fill"
-              android_material_icon_name="favorite"
-              size={64}
-              color={theme.colors.textSecondary}
-            />
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-              No recipients yet
-            </Text>
-            <Text style={[styles.emptySubtext, { color: theme.colors.textSecondary }]}>
-              Tap the + button to add someone special
-            </Text>
+    <ImageBackground
+      source={{ uri: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&q=80' }}
+      style={styles.backgroundImage}
+      imageStyle={{ opacity: 0.15 }}
+    >
+      <View style={[styles.container, { backgroundColor: 'transparent' }]}>
+        <View style={[styles.header, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+            Say It Anyway
+          </Text>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => router.push('/support-resources')}
+            >
+              <Text style={[styles.emergencyButton, { color: theme.colors.danger }]}>
+                !!!
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => router.push('/add-recipient')}
+            >
+              <IconSymbol
+                ios_icon_name="plus.circle.fill"
+                android_material_icon_name="add-circle"
+                size={32}
+                color={theme.colors.primary}
+              />
+            </TouchableOpacity>
           </View>
-        ) : (
-          <View style={styles.grid}>
-            {recipients.map((recipient, index) => (
-              <TouchableOpacity
-                key={recipient.id || `recipient-${index}`}
-                style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-                onPress={() => router.push(`/recipient/${recipient.id}`)}
-              >
-                <View style={styles.cardContent}>
-                  {recipient.photoUri ? (
-                    <Image source={{ uri: recipient.photoUri }} style={styles.photo} />
-                  ) : (
-                    <View style={[styles.photoPlaceholder, { backgroundColor: theme.colors.secondary }]}>
-                      <IconSymbol
-                        ios_icon_name="person.fill"
-                        android_material_icon_name="person"
-                        size={40}
-                        color={theme.colors.primary}
-                      />
-                    </View>
-                  )}
-                  
-                  <View style={styles.cardInfo}>
-                    <View style={styles.nameRow}>
-                      <Text style={[styles.name, { color: theme.colors.text }]} numberOfLines={1}>
-                        {recipient.name}
-                      </Text>
-                      {recipient.isDefault && (
+        </View>
+
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {recipients.length === 0 ? (
+            <View style={styles.emptyState}>
+              <IconSymbol
+                ios_icon_name="heart.fill"
+                android_material_icon_name="favorite"
+                size={64}
+                color={theme.colors.textSecondary}
+              />
+              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                No recipients yet
+              </Text>
+              <Text style={[styles.emptySubtext, { color: theme.colors.textSecondary }]}>
+                Tap the + button to add someone special
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.grid}>
+              {recipients.map((recipient, index) => (
+                <TouchableOpacity
+                  key={recipient.id || `recipient-${index}`}
+                  style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+                  onPress={() => router.push(`/recipient/${recipient.id}`)}
+                >
+                  <View style={styles.cardContent}>
+                    {recipient.photoUri ? (
+                      <Image source={{ uri: recipient.photoUri }} style={styles.photo} />
+                    ) : (
+                      <View style={[styles.photoPlaceholder, { backgroundColor: theme.colors.secondary }]}>
                         <IconSymbol
-                          ios_icon_name="star.fill"
-                          android_material_icon_name="star"
-                          size={16}
-                          color={theme.colors.accent}
+                          ios_icon_name="person.fill"
+                          android_material_icon_name="person"
+                          size={40}
+                          color={theme.colors.primary}
                         />
-                      )}
-                    </View>
-                    
-                    {recipient.nickname && (
-                      <Text style={[styles.nickname, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-                        &quot;{recipient.nickname}&quot;
-                      </Text>
+                      </View>
                     )}
                     
-                    <Text style={[styles.lastMessage, { color: theme.colors.textSecondary }]}>
-                      {formatLastMessage(recipient.lastMessageTimestamp)}
-                    </Text>
+                    <View style={styles.cardInfo}>
+                      <View style={styles.nameRow}>
+                        <Text style={[styles.name, { color: theme.colors.text }]} numberOfLines={1}>
+                          {recipient.name}
+                        </Text>
+                        {recipient.isDefault && (
+                          <IconSymbol
+                            ios_icon_name="star.fill"
+                            android_material_icon_name="star"
+                            size={16}
+                            color={theme.colors.accent}
+                          />
+                        )}
+                      </View>
+                      
+                      {recipient.nickname && (
+                        <Text style={[styles.nickname, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                          &quot;{recipient.nickname}&quot;
+                        </Text>
+                      )}
+                      
+                      <Text style={[styles.lastMessage, { color: theme.colors.textSecondary }]}>
+                        {formatLastMessage(recipient.lastMessageTimestamp)}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-      </ScrollView>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </ScrollView>
 
-      <TouchableOpacity
-        style={[styles.settingsButton, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-        onPress={() => router.push('/settings')}
-      >
-        <IconSymbol
-          ios_icon_name="gearshape.fill"
-          android_material_icon_name="settings"
-          size={24}
-          color={theme.colors.primary}
-        />
-      </TouchableOpacity>
-    </View>
+        <TouchableOpacity
+          style={[styles.settingsButton, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+          onPress={() => router.push('/settings')}
+        >
+          <IconSymbol
+            ios_icon_name="gearshape.fill"
+            android_material_icon_name="settings"
+            size={24}
+            color={theme.colors.primary}
+          />
+        </TouchableOpacity>
+      </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
   container: {
     flex: 1,
   },

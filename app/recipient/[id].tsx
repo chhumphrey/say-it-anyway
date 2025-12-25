@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Image,
   LayoutChangeEvent,
+  ImageBackground,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
@@ -45,7 +46,7 @@ export default function RecipientDetailScreen() {
       setRecipient(found || null);
 
       if (found) {
-        const allMessages = await StorageService.getMessages(id as string);
+        const allMessages = await StorageService.getMessagesForRecipient(id as string);
         console.log('Messages loaded:', allMessages.length);
         const sorted = allMessages.sort((a, b) => b.timestamp - a.timestamp);
         setMessages(sorted);
@@ -71,9 +72,10 @@ export default function RecipientDetailScreen() {
     }, [loadData])
   );
 
-  const toggleHidden = useCallback(async (messageId: string, currentHidden: boolean) => {
-    console.log('Toggling hidden for message:', messageId);
-    await StorageService.updateMessage(messageId, { isHidden: !currentHidden });
+  const toggleHidden = useCallback(async (message: Message) => {
+    console.log('Toggling hidden for message:', message.id);
+    const updatedMessage = { ...message, isHidden: !message.isHidden };
+    await StorageService.updateMessage(updatedMessage);
     await loadData();
   }, [loadData]);
 
@@ -115,33 +117,81 @@ export default function RecipientDetailScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <IconSymbol
-              ios_icon_name="chevron.left"
-              android_material_icon_name="arrow-back"
-              size={28}
-              color={theme.colors.text}
-            />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Loading...</Text>
-          <View style={styles.editButton} />
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&q=80' }}
+        style={styles.backgroundImage}
+        imageStyle={{ opacity: 0.15 }}
+      >
+        <View style={[styles.container, { backgroundColor: 'transparent' }]}>
+          <View style={[styles.header, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <IconSymbol
+                ios_icon_name="chevron.left"
+                android_material_icon_name="arrow-back"
+                size={28}
+                color={theme.colors.text}
+              />
+            </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Loading...</Text>
+            <View style={styles.editButton} />
+          </View>
+          <View style={styles.loadingContainer}>
+            <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+              Loading recipient details...
+            </Text>
+          </View>
         </View>
-        <View style={styles.loadingContainer}>
-          <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
-            Loading recipient details...
-          </Text>
-        </View>
-      </View>
+      </ImageBackground>
     );
   }
 
   if (!recipient) {
     console.log('Recipient not found, showing error');
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&q=80' }}
+        style={styles.backgroundImage}
+        imageStyle={{ opacity: 0.15 }}
+      >
+        <View style={[styles.container, { backgroundColor: 'transparent' }]}>
+          <View style={[styles.header, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <IconSymbol
+                ios_icon_name="chevron.left"
+                android_material_icon_name="arrow-back"
+                size={28}
+                color={theme.colors.text}
+              />
+            </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Error</Text>
+            <View style={styles.editButton} />
+          </View>
+          <View style={styles.errorContainer}>
+            <Text style={[styles.errorText, { color: theme.colors.text }]}>
+              Recipient not found
+            </Text>
+            <TouchableOpacity
+              style={[styles.errorButton, { backgroundColor: theme.colors.primary }]}
+              onPress={() => router.back()}
+            >
+              <Text style={styles.errorButtonText}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ImageBackground>
+    );
+  }
+
+  console.log('Rendering recipient screen for:', recipient.name);
+
+  return (
+    <ImageBackground
+      source={{ uri: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&q=80' }}
+      style={styles.backgroundImage}
+      imageStyle={{ opacity: 0.15 }}
+    >
+      <View style={[styles.container, { backgroundColor: 'transparent' }]}>
+        <View style={[styles.header, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <IconSymbol
               ios_icon_name="chevron.left"
@@ -150,157 +200,127 @@ export default function RecipientDetailScreen() {
               color={theme.colors.text}
             />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Error</Text>
-          <View style={styles.editButton} />
-        </View>
-        <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.text }]}>
-            Recipient not found
-          </Text>
-          <TouchableOpacity
-            style={[styles.errorButton, { backgroundColor: theme.colors.primary }]}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.errorButtonText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  console.log('Rendering recipient screen for:', recipient.name);
-
-  return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <IconSymbol
-            ios_icon_name="chevron.left"
-            android_material_icon_name="arrow-back"
-            size={28}
-            color={theme.colors.text}
-          />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]} numberOfLines={1}>
-          {recipient.name}
-        </Text>
-        <TouchableOpacity
-          onPress={() => router.push(`/edit-recipient?id=${id}`)}
-          style={styles.editButton}
-        >
-          <IconSymbol
-            ios_icon_name="pencil.circle.fill"
-            android_material_icon_name="edit"
-            size={28}
-            color={theme.colors.primary}
-          />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.recipientInfo}>
-          {recipient.photoUri ? (
-            <Image source={{ uri: recipient.photoUri }} style={styles.photo} />
-          ) : (
-            <View style={[styles.photoPlaceholder, { backgroundColor: theme.colors.secondary }]}>
-              <IconSymbol
-                ios_icon_name="person.fill"
-                android_material_icon_name="person"
-                size={50}
-                color={theme.colors.primary}
-              />
-            </View>
-          )}
-          
-          <Text style={[styles.name, { color: theme.colors.text }]}>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]} numberOfLines={1}>
             {recipient.name}
           </Text>
-          
-          {recipient.nickname && (
-            <Text style={[styles.nickname, { color: theme.colors.textSecondary }]}>
-              &quot;{recipient.nickname}&quot;
-            </Text>
-          )}
-
-          {(recipient.dateOfBirth || recipient.dateOfDeath) && (
-            <Text style={[styles.dates, { color: theme.colors.textSecondary }]}>
-              {recipient.dateOfBirth && `Born: ${recipient.dateOfBirth}`}
-              {recipient.dateOfBirth && recipient.dateOfDeath && ' • '}
-              {recipient.dateOfDeath && `Passed: ${recipient.dateOfDeath}`}
-            </Text>
-          )}
-        </View>
-
-        <View style={styles.actionButtons}>
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
-            onPress={() => router.push(`/compose-message?recipientId=${id}&type=text`)}
+            onPress={() => router.push(`/edit-recipient?id=${id}`)}
+            style={styles.editButton}
           >
             <IconSymbol
-              ios_icon_name="pencil"
+              ios_icon_name="pencil.circle.fill"
               android_material_icon_name="edit"
-              size={20}
-              color="#FFFFFF"
+              size={28}
+              color={theme.colors.primary}
             />
-            <Text style={styles.actionButtonText}>Write Message</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.accent }]}
-            onPress={() => router.push(`/compose-message?recipientId=${id}&type=audio`)}
-          >
-            <IconSymbol
-              ios_icon_name="mic.fill"
-              android_material_icon_name="mic"
-              size={20}
-              color="#FFFFFF"
-            />
-            <Text style={styles.actionButtonText}>Record Audio</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.messagesHeader}>
-          <Text style={[styles.messagesTitle, { color: theme.colors.text }]}>
-            Messages ({visibleMessages.length})
-          </Text>
-          <TouchableOpacity onPress={() => setShowHidden(!showHidden)}>
-            <Text style={[styles.toggleText, { color: theme.colors.primary }]}>
-              {showHidden ? 'Hide Hidden' : 'Show Hidden'}
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.recipientInfo}>
+            {recipient.photoUri ? (
+              <Image source={{ uri: recipient.photoUri }} style={styles.photo} />
+            ) : (
+              <View style={[styles.photoPlaceholder, { backgroundColor: theme.colors.secondary }]}>
+                <IconSymbol
+                  ios_icon_name="person.fill"
+                  android_material_icon_name="person"
+                  size={50}
+                  color={theme.colors.primary}
+                />
+              </View>
+            )}
+            
+            <Text style={[styles.name, { color: theme.colors.text }]}>
+              {recipient.name}
             </Text>
-          </TouchableOpacity>
-        </View>
+            
+            {recipient.nickname && (
+              <Text style={[styles.nickname, { color: theme.colors.textSecondary }]}>
+                &quot;{recipient.nickname}&quot;
+              </Text>
+            )}
 
-        {visibleMessages.length === 0 ? (
-          <View style={styles.emptyState}>
-            <IconSymbol
-              ios_icon_name="envelope.fill"
-              android_material_icon_name="mail"
-              size={48}
-              color={theme.colors.textSecondary}
-            />
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-              No messages yet
-            </Text>
-            <Text style={[styles.emptySubtext, { color: theme.colors.textSecondary }]}>
-              Share your thoughts and feelings
-            </Text>
+            {(recipient.dateOfBirth || recipient.dateOfDeath) && (
+              <Text style={[styles.dates, { color: theme.colors.textSecondary }]}>
+                {recipient.dateOfBirth && `Born: ${recipient.dateOfBirth}`}
+                {recipient.dateOfBirth && recipient.dateOfDeath && ' • '}
+                {recipient.dateOfDeath && `Passed: ${recipient.dateOfDeath}`}
+              </Text>
+            )}
           </View>
-        ) : (
-          visibleMessages.map((message, index) => (
-            <MessageCard
-              key={`${message.id}-${index}`}
-              message={message}
-              theme={theme}
-              isExpanded={expandedMessages.has(message.id)}
-              onToggleExpanded={() => toggleExpanded(message.id)}
-              onToggleHidden={() => toggleHidden(message.id, message.isHidden)}
-              formatDate={formatDate}
-              formatDuration={formatDuration}
-            />
-          ))
-        )}
-      </ScrollView>
-    </View>
+
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+              onPress={() => router.push(`/compose-message?recipientId=${id}&type=text`)}
+            >
+              <IconSymbol
+                ios_icon_name="pencil"
+                android_material_icon_name="edit"
+                size={20}
+                color="#FFFFFF"
+              />
+              <Text style={styles.actionButtonText}>Write Message</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: theme.colors.accent }]}
+              onPress={() => router.push(`/compose-message?recipientId=${id}&type=audio`)}
+            >
+              <IconSymbol
+                ios_icon_name="mic.fill"
+                android_material_icon_name="mic"
+                size={20}
+                color="#FFFFFF"
+              />
+              <Text style={styles.actionButtonText}>Record Audio</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.messagesHeader}>
+            <Text style={[styles.messagesTitle, { color: theme.colors.text }]}>
+              Messages ({visibleMessages.length})
+            </Text>
+            <TouchableOpacity onPress={() => setShowHidden(!showHidden)}>
+              <Text style={[styles.toggleText, { color: theme.colors.primary }]}>
+                {showHidden ? 'Hide Hidden' : 'Show Hidden'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {visibleMessages.length === 0 ? (
+            <View style={styles.emptyState}>
+              <IconSymbol
+                ios_icon_name="envelope.fill"
+                android_material_icon_name="mail"
+                size={48}
+                color={theme.colors.textSecondary}
+              />
+              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                No messages yet
+              </Text>
+              <Text style={[styles.emptySubtext, { color: theme.colors.textSecondary }]}>
+                Share your thoughts and feelings
+              </Text>
+            </View>
+          ) : (
+            visibleMessages.map((message, index) => (
+              <MessageCard
+                key={`${message.id}-${index}`}
+                message={message}
+                theme={theme}
+                isExpanded={expandedMessages.has(message.id)}
+                onToggleExpanded={() => toggleExpanded(message.id)}
+                onToggleHidden={() => toggleHidden(message)}
+                formatDate={formatDate}
+                formatDuration={formatDuration}
+              />
+            ))
+          )}
+        </ScrollView>
+      </View>
+    </ImageBackground>
   );
 }
 
@@ -562,6 +582,11 @@ function AudioPlayer({ audioUri, audioDuration, theme, formatDuration }: AudioPl
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
   container: {
     flex: 1,
   },

@@ -114,6 +114,62 @@ export const themes: Record<ThemeName, AppTheme> = {
       danger: '#E57373',
     },
   },
+  'Emerald Jewel': {
+    name: 'Emerald Jewel',
+    colors: {
+      background: '#E8F5F0',
+      card: '#FFFFFF',
+      text: '#0D3B2E',
+      textSecondary: '#2D5B4E',
+      primary: '#50C878',
+      secondary: '#7FD99F',
+      accent: '#2E8B57',
+      border: '#C8E8DC',
+      danger: '#E57373',
+    },
+  },
+  'Sapphire Jewel': {
+    name: 'Sapphire Jewel',
+    colors: {
+      background: '#E8F0F8',
+      card: '#FFFFFF',
+      text: '#0A2540',
+      textSecondary: '#2A4560',
+      primary: '#0F52BA',
+      secondary: '#4A7FD9',
+      accent: '#082A5E',
+      border: '#C8D8E8',
+      danger: '#E57373',
+    },
+  },
+  'Ruby Jewel': {
+    name: 'Ruby Jewel',
+    colors: {
+      background: '#F8E8F0',
+      card: '#FFFFFF',
+      text: '#3A0D2E',
+      textSecondary: '#5A2D4E',
+      primary: '#E0115F',
+      secondary: '#F04A8F',
+      accent: '#9B0A3C',
+      border: '#E8C8DC',
+      danger: '#E57373',
+    },
+  },
+  'Custom': {
+    name: 'Custom',
+    colors: {
+      background: '#F8F7FF',
+      card: '#FFFFFF',
+      text: '#2D2D3A',
+      textSecondary: '#6B6B7B',
+      primary: '#9B8FD9',
+      secondary: '#C4B8E8',
+      accent: '#7B6FC4',
+      border: '#E8E4F3',
+      danger: '#E57373',
+    },
+  },
 };
 
 export const getTheme = (themeName: ThemeName): AppTheme => {

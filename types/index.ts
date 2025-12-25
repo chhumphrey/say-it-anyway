@@ -47,7 +47,23 @@ export type ThemeName =
   | 'Calm Ocean' 
   | 'Sunset Rose'
   | 'Misty Gray'
-  | 'Gentle Mint';
+  | 'Gentle Mint'
+  | 'Emerald Jewel'
+  | 'Sapphire Jewel'
+  | 'Ruby Jewel'
+  | 'Custom';
+
+export interface CustomColors {
+  background: string;
+  card: string;
+  text: string;
+  textSecondary: string;
+  primary: string;
+  secondary: string;
+  accent: string;
+  border: string;
+  danger: string;
+}
 
 export interface AppTheme {
   name: ThemeName;
