@@ -1,16 +1,17 @@
+
 {
   "expo": {
     "name": "Say It Anyway: Grief Journal",
     "slug": "Say It Anyway: Grief Journal",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/natively-dark.png",
+    "icon": "./assets/images/db734c9f-ab3a-4e5b-9326-6948ee2ad89f.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/natively-dark.png",
+      "image": "./assets/images/db734c9f-ab3a-4e5b-9326-6948ee2ad89f.png",
       "resizeMode": "contain",
-      "backgroundColor": "#000000"
+      "backgroundColor": "#8BA5C8"
     },
     "ios": {
       "supportsTablet": true,
@@ -22,8 +23,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/natively-dark.png",
-        "backgroundColor": "#000000"
+        "foregroundImage": "./assets/images/db734c9f-ab3a-4e5b-9326-6948ee2ad89f.png",
+        "backgroundColor": "#8BA5C8"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.Natively",
@@ -32,7 +33,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/images/final_quest_240x240.png",
+      "favicon": "./assets/images/db734c9f-ab3a-4e5b-9326-6948ee2ad89f.png",
       "bundler": "metro"
     },
     "plugins": [
