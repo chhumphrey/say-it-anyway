@@ -341,23 +341,6 @@ export default function HomeScreen() {
 
                 <View style={styles.helpSection}>
                   <View style={styles.helpIconContainer}>
-                    <IconSymbol
-                      ios_icon_name="person.fill"
-                      android_material_icon_name="person"
-                      size={32}
-                      color={theme.colors.primary}
-                    />
-                  </View>
-                  <Text style={[styles.helpTitle, { color: theme.colors.text }]}>
-                    Your Profile
-                  </Text>
-                  <Text style={[styles.helpText, { color: theme.colors.textSecondary }]}>
-                    Visit the Profile tab to set your name and photo. This personalizes your experience and helps you feel connected to the app.
-                  </Text>
-                </View>
-
-                <View style={styles.helpSection}>
-                  <View style={styles.helpIconContainer}>
                     <Text style={[styles.sosIcon, { color: theme.colors.danger }]}>SOS</Text>
                   </View>
                   <Text style={[styles.helpTitle, { color: theme.colors.text }]}>
