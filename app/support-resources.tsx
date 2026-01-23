@@ -12,12 +12,16 @@ import {
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
+import { supportResourcesData } from '@/utils/supportResources';
 
 export default function SupportResourcesScreen() {
   const router = useRouter();
-  const { theme } = useAppTheme();
+  const { theme, supportRegion } = useAppTheme();
+
+  const regionalData = supportResourcesData[supportRegion];
 
   const handleCall = (number: string) => {
+    console.log('User tapped call button for:', number);
     const url = `tel:${number}`;
     Linking.canOpenURL(url)
       .then((supported) => {
@@ -31,6 +35,7 @@ export default function SupportResourcesScreen() {
   };
 
   const handleText = (number: string) => {
+    console.log('User tapped text button for:', number);
     const url = `sms:${number}`;
     Linking.canOpenURL(url)
       .then((supported) => {
@@ -44,6 +49,7 @@ export default function SupportResourcesScreen() {
   };
 
   const handleWebsite = (url: string) => {
+    console.log('User tapped website link:', url);
     Linking.canOpenURL(url)
       .then((supported) => {
         if (supported) {
@@ -53,6 +59,28 @@ export default function SupportResourcesScreen() {
         }
       })
       .catch((err) => console.error('Error opening URL:', err));
+  };
+
+  const getIconForType = (iconType: 'phone' | 'message' | 'warning') => {
+    switch (iconType) {
+      case 'phone':
+        return { ios: 'phone.circle.fill', android: 'phone' };
+      case 'message':
+        return { ios: 'message.circle.fill', android: 'message' };
+      case 'warning':
+        return { ios: 'exclamationmark.triangle.fill', android: 'warning' };
+    }
+  };
+
+  const getColorForType = (type: 'crisis' | 'emergency' | 'support') => {
+    switch (type) {
+      case 'crisis':
+        return theme.colors.primary;
+      case 'emergency':
+        return theme.colors.danger;
+      case 'support':
+        return theme.colors.accent;
+    }
   };
 
   return (
@@ -73,6 +101,18 @@ export default function SupportResourcesScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <View style={[styles.regionBadge, { backgroundColor: theme.colors.secondary, borderColor: theme.colors.border }]}>
+          <IconSymbol
+            ios_icon_name="globe"
+            android_material_icon_name="language"
+            size={16}
+            color={theme.colors.primary}
+          />
+          <Text style={[styles.regionBadgeText, { color: theme.colors.text }]}>
+            {supportRegion}
+          </Text>
+        </View>
+
         <View style={[styles.messageBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <IconSymbol
             ios_icon_name="heart.circle.fill"
@@ -84,8 +124,7 @@ export default function SupportResourcesScreen() {
             You&apos;re Not Alone
           </Text>
           <Text style={[styles.messageText, { color: theme.colors.textSecondary }]}>
-            We noticed your message may indicate you&apos;re going through a difficult time. 
-            Please know that support is available 24/7, and reaching out is a sign of strength.
+            {regionalData.message}
           </Text>
         </View>
 
@@ -94,118 +133,84 @@ export default function SupportResourcesScreen() {
             Immediate Support
           </Text>
 
-          <View style={[styles.resourceCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <View style={styles.resourceHeader}>
-              <IconSymbol
-                ios_icon_name="phone.circle.fill"
-                android_material_icon_name="phone"
-                size={32}
-                color={theme.colors.primary}
-              />
-              <View style={styles.resourceInfo}>
-                <Text style={[styles.resourceName, { color: theme.colors.text }]}>
-                  988 Suicide & Crisis Lifeline
-                </Text>
-                <Text style={[styles.resourceDescription, { color: theme.colors.textSecondary }]}>
-                  24/7 free and confidential support
-                </Text>
+          {regionalData.resources.map((resource, index) => {
+            const icons = getIconForType(resource.icon);
+            const color = getColorForType(resource.type);
+            
+            return (
+              <View
+                key={index}
+                style={[styles.resourceCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+              >
+                <View style={styles.resourceHeader}>
+                  <IconSymbol
+                    ios_icon_name={icons.ios}
+                    android_material_icon_name={icons.android}
+                    size={32}
+                    color={color}
+                  />
+                  <View style={styles.resourceInfo}>
+                    <Text style={[styles.resourceName, { color: theme.colors.text }]}>
+                      {resource.name}
+                    </Text>
+                    <Text style={[styles.resourceDescription, { color: theme.colors.textSecondary }]}>
+                      {resource.description}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.resourceActions}>
+                  {resource.phone && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.callButton, { backgroundColor: color }]}
+                      onPress={() => handleCall(resource.phone!)}
+                    >
+                      <IconSymbol
+                        ios_icon_name="phone.fill"
+                        android_material_icon_name="phone"
+                        size={18}
+                        color="#FFFFFF"
+                      />
+                      <Text style={styles.actionButtonText}>
+                        Call {resource.phone}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {resource.sms && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.callButton, { backgroundColor: color }]}
+                      onPress={() => handleText(resource.sms!)}
+                    >
+                      <IconSymbol
+                        ios_icon_name="message.fill"
+                        android_material_icon_name="message"
+                        size={18}
+                        color="#FFFFFF"
+                      />
+                      <Text style={styles.actionButtonText}>
+                        Text {resource.sms}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {resource.website && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.websiteButton, { borderColor: color }]}
+                      onPress={() => handleWebsite(resource.website!)}
+                    >
+                      <IconSymbol
+                        ios_icon_name="globe"
+                        android_material_icon_name="language"
+                        size={18}
+                        color={color}
+                      />
+                      <Text style={[styles.websiteButtonText, { color: color }]}>
+                        Website
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
-            </View>
-            <View style={styles.resourceActions}>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.callButton, { backgroundColor: theme.colors.primary }]}
-                onPress={() => handleCall('988')}
-              >
-                <IconSymbol
-                  ios_icon_name="phone.fill"
-                  android_material_icon_name="phone"
-                  size={18}
-                  color="#FFFFFF"
-                />
-                <Text style={styles.actionButtonText}>Call 988</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.websiteButton, { borderColor: theme.colors.primary }]}
-                onPress={() => handleWebsite('https://988lifeline.org')}
-              >
-                <IconSymbol
-                  ios_icon_name="globe"
-                  android_material_icon_name="language"
-                  size={18}
-                  color={theme.colors.primary}
-                />
-                <Text style={[styles.websiteButtonText, { color: theme.colors.primary }]}>
-                  Website
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={[styles.resourceCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <View style={styles.resourceHeader}>
-              <IconSymbol
-                ios_icon_name="message.circle.fill"
-                android_material_icon_name="message"
-                size={32}
-                color={theme.colors.accent}
-              />
-              <View style={styles.resourceInfo}>
-                <Text style={[styles.resourceName, { color: theme.colors.text }]}>
-                  Crisis Text Line
-                </Text>
-                <Text style={[styles.resourceDescription, { color: theme.colors.textSecondary }]}>
-                  Text support available 24/7
-                </Text>
-              </View>
-            </View>
-            <View style={styles.resourceActions}>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.callButton, { backgroundColor: theme.colors.accent }]}
-                onPress={() => handleText('741741')}
-              >
-                <IconSymbol
-                  ios_icon_name="message.fill"
-                  android_material_icon_name="message"
-                  size={18}
-                  color="#FFFFFF"
-                />
-                <Text style={styles.actionButtonText}>Text HOME to 741741</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={[styles.resourceCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <View style={styles.resourceHeader}>
-              <IconSymbol
-                ios_icon_name="exclamationmark.triangle.fill"
-                android_material_icon_name="warning"
-                size={32}
-                color={theme.colors.danger}
-              />
-              <View style={styles.resourceInfo}>
-                <Text style={[styles.resourceName, { color: theme.colors.text }]}>
-                  Emergency Services
-                </Text>
-                <Text style={[styles.resourceDescription, { color: theme.colors.textSecondary }]}>
-                  If you&apos;re in immediate danger
-                </Text>
-              </View>
-            </View>
-            <View style={styles.resourceActions}>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.callButton, { backgroundColor: theme.colors.danger }]}
-                onPress={() => handleCall('911')}
-              >
-                <IconSymbol
-                  ios_icon_name="phone.fill"
-                  android_material_icon_name="phone"
-                  size={18}
-                  color="#FFFFFF"
-                />
-                <Text style={styles.actionButtonText}>Call 911</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+            );
+          })}
         </View>
 
         <View style={styles.additionalSection}>
@@ -213,65 +218,28 @@ export default function SupportResourcesScreen() {
             Additional Resources
           </Text>
 
-          <TouchableOpacity
-            style={[styles.linkCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-            onPress={() => handleWebsite('https://www.samhsa.gov/find-help/national-helpline')}
-          >
-            <View style={styles.linkContent}>
-              <Text style={[styles.linkTitle, { color: theme.colors.text }]}>
-                SAMHSA National Helpline
-              </Text>
-              <Text style={[styles.linkDescription, { color: theme.colors.textSecondary }]}>
-                1-800-662-4357 • Treatment referral and information
-              </Text>
-            </View>
-            <IconSymbol
-              ios_icon_name="chevron.right"
-              android_material_icon_name="chevron-right"
-              size={20}
-              color={theme.colors.textSecondary}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.linkCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-            onPress={() => handleWebsite('https://www.nami.org/help')}
-          >
-            <View style={styles.linkContent}>
-              <Text style={[styles.linkTitle, { color: theme.colors.text }]}>
-                NAMI HelpLine
-              </Text>
-              <Text style={[styles.linkDescription, { color: theme.colors.textSecondary }]}>
-                1-800-950-6264 • Mental health support and resources
-              </Text>
-            </View>
-            <IconSymbol
-              ios_icon_name="chevron.right"
-              android_material_icon_name="chevron-right"
-              size={20}
-              color={theme.colors.textSecondary}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.linkCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-            onPress={() => handleWebsite('https://www.veteranscrisisline.net')}
-          >
-            <View style={styles.linkContent}>
-              <Text style={[styles.linkTitle, { color: theme.colors.text }]}>
-                Veterans Crisis Line
-              </Text>
-              <Text style={[styles.linkDescription, { color: theme.colors.textSecondary }]}>
-                1-800-273-8255 (Press 1) • Support for veterans
-              </Text>
-            </View>
-            <IconSymbol
-              ios_icon_name="chevron.right"
-              android_material_icon_name="chevron-right"
-              size={20}
-              color={theme.colors.textSecondary}
-            />
-          </TouchableOpacity>
+          {regionalData.additionalResources.map((resource, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[styles.linkCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+              onPress={() => handleWebsite(resource.url)}
+            >
+              <View style={styles.linkContent}>
+                <Text style={[styles.linkTitle, { color: theme.colors.text }]}>
+                  {resource.title}
+                </Text>
+                <Text style={[styles.linkDescription, { color: theme.colors.textSecondary }]}>
+                  {resource.description}
+                </Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron-right"
+                size={20}
+                color={theme.colors.textSecondary}
+              />
+            </TouchableOpacity>
+          ))}
         </View>
 
         <View style={[styles.footerBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
@@ -280,6 +248,21 @@ export default function SupportResourcesScreen() {
             These feelings are valid, and professional support can help you navigate this difficult time.
           </Text>
         </View>
+
+        <TouchableOpacity
+          style={[styles.changeRegionButton, { backgroundColor: theme.colors.secondary, borderColor: theme.colors.border }]}
+          onPress={() => router.push('/settings')}
+        >
+          <IconSymbol
+            ios_icon_name="globe"
+            android_material_icon_name="language"
+            size={20}
+            color={theme.colors.primary}
+          />
+          <Text style={[styles.changeRegionText, { color: theme.colors.text }]}>
+            Change Region in Settings
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -316,6 +299,21 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingBottom: 100,
+  },
+  regionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  regionBadgeText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   messageBox: {
     borderRadius: 16,
@@ -370,9 +368,11 @@ const styles = StyleSheet.create({
   resourceActions: {
     flexDirection: 'row',
     gap: 12,
+    flexWrap: 'wrap',
   },
   actionButton: {
     flex: 1,
+    minWidth: 120,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -423,10 +423,25 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     padding: 16,
+    marginBottom: 16,
   },
   footerText: {
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
+  },
+  changeRegionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  changeRegionText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

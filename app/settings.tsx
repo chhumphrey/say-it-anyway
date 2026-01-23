@@ -16,18 +16,21 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { ThemeName, themeNames, themes, backgroundScenes, getSceneImageUrl } from '@/utils/themes';
-import { CustomColors, BackgroundScene } from '@/types';
+import { CustomColors, BackgroundScene, SupportRegion } from '@/types';
+import { allRegions } from '@/utils/supportResources';
 import Slider from '@react-native-community/slider';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { theme, themeName, customColors, backgroundSettings, setTheme, setCustomColors, setBackgroundSettings } = useAppTheme();
+  const { theme, themeName, customColors, backgroundSettings, supportRegion, setTheme, setCustomColors, setBackgroundSettings, setSupportRegion } = useAppTheme();
   const [showCustomColorPicker, setShowCustomColorPicker] = useState(false);
+  const [showRegionPicker, setShowRegionPicker] = useState(false);
   const [editingColors, setEditingColors] = useState<CustomColors>(
     customColors || themes['Soft Lavender'].colors
   );
 
   const handleThemeSelect = (newTheme: ThemeName) => {
+    console.log('User selected theme:', newTheme);
     if (newTheme === 'Custom') {
       setShowCustomColorPicker(true);
     } else {
@@ -36,13 +39,14 @@ export default function SettingsScreen() {
   };
 
   const handleSaveCustomColors = () => {
+    console.log('User saved custom colors');
     setCustomColors(editingColors);
     setTheme('Custom');
     setShowCustomColorPicker(false);
   };
 
   const handleSceneSelect = (scene: BackgroundScene) => {
-    console.log('Scene selected:', scene);
+    console.log('User selected scene:', scene);
     if (scene === 'Custom Photo') {
       pickBackgroundImage();
     } else {
@@ -55,16 +59,21 @@ export default function SettingsScreen() {
   };
 
   const handleTransparencyChange = (value: number) => {
-    console.log('Transparency changed to:', value);
     setBackgroundSettings({
       ...backgroundSettings,
       transparency: value,
     });
   };
 
+  const handleRegionSelect = (region: SupportRegion) => {
+    console.log('User selected support region:', region);
+    setSupportRegion(region);
+    setShowRegionPicker(false);
+  };
+
   const pickBackgroundImage = async () => {
     try {
-      console.log('Launching image picker for background');
+      console.log('User launching image picker for background');
       
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
@@ -76,7 +85,7 @@ export default function SettingsScreen() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const uri = result.assets[0].uri;
-        console.log('Selected background image:', uri);
+        console.log('User selected background image:', uri);
         setBackgroundSettings({ 
           scene: 'Custom Photo', 
           customPhotoUri: uri,
@@ -302,6 +311,41 @@ export default function SettingsScreen() {
             </View>
           </View>
 
+          <Text style={[styles.mainSectionTitle, { color: theme.colors.text, marginTop: 32 }]}>
+            Support Resources Location
+          </Text>
+          <Text style={[styles.sectionDescription, { color: theme.colors.textSecondary }]}>
+            Select your region to see relevant crisis support resources
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.regionCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+            onPress={() => setShowRegionPicker(true)}
+          >
+            <View style={styles.regionContent}>
+              <IconSymbol
+                ios_icon_name="globe"
+                android_material_icon_name="language"
+                size={24}
+                color={theme.colors.primary}
+              />
+              <View style={styles.regionTextContainer}>
+                <Text style={[styles.regionLabel, { color: theme.colors.textSecondary }]}>
+                  Current Region
+                </Text>
+                <Text style={[styles.regionValue, { color: theme.colors.text }]}>
+                  {supportRegion}
+                </Text>
+              </View>
+            </View>
+            <IconSymbol
+              ios_icon_name="chevron.right"
+              android_material_icon_name="chevron-right"
+              size={20}
+              color={theme.colors.textSecondary}
+            />
+          </TouchableOpacity>
+
           <View style={[styles.infoBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, marginTop: 24 }]}>
             <IconSymbol
               ios_icon_name="info.circle.fill"
@@ -310,7 +354,7 @@ export default function SettingsScreen() {
               color={theme.colors.primary}
             />
             <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-              Your theme and background preferences are saved locally on your device. The background adapts to your chosen color palette for a harmonious experience.
+              Your theme, background, and location preferences are saved locally on your device. The support resources shown will be specific to your selected region.
             </Text>
           </View>
         </ScrollView>
@@ -391,6 +435,60 @@ export default function SettingsScreen() {
               >
                 <Text style={styles.saveButtonText}>Save Custom Theme</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          visible={showRegionPicker}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowRegionPicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.colors.card }]}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+                  Select Your Region
+                </Text>
+                <TouchableOpacity onPress={() => setShowRegionPicker(false)}>
+                  <IconSymbol
+                    ios_icon_name="xmark.circle.fill"
+                    android_material_icon_name="close"
+                    size={28}
+                    color={theme.colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.regionPickerScroll}>
+                {allRegions.map((region) => {
+                  const isSelected = region === supportRegion;
+                  return (
+                    <TouchableOpacity
+                      key={region}
+                      style={[
+                        styles.regionOption,
+                        { borderBottomColor: theme.colors.border },
+                        isSelected && { backgroundColor: theme.colors.secondary },
+                      ]}
+                      onPress={() => handleRegionSelect(region)}
+                    >
+                      <Text style={[styles.regionOptionText, { color: theme.colors.text }]}>
+                        {region}
+                      </Text>
+                      {isSelected && (
+                        <IconSymbol
+                          ios_icon_name="checkmark"
+                          android_material_icon_name="check"
+                          size={20}
+                          color={theme.colors.primary}
+                        />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
             </View>
           </View>
         </Modal>
@@ -581,6 +679,31 @@ const styles = StyleSheet.create({
   sliderLabel: {
     fontSize: 12,
   },
+  regionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 16,
+  },
+  regionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  regionTextContainer: {
+    flex: 1,
+  },
+  regionLabel: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  regionValue: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
   infoBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -656,5 +779,19 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  regionPickerScroll: {
+    maxHeight: 500,
+  },
+  regionOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+  },
+  regionOptionText: {
+    fontSize: 16,
   },
 });

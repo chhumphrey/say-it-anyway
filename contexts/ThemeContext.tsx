@@ -1,17 +1,21 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AppTheme, ThemeName, CustomColors, BackgroundSettings } from '@/types';
+import { AppTheme, ThemeName, CustomColors, BackgroundSettings, SupportRegion } from '@/types';
 import { getTheme } from '@/utils/themes';
 import { StorageService } from '@/utils/storage';
+import { getDefaultRegionFromLocale } from '@/utils/supportResources';
+import * as Localization from 'expo-localization';
 
 interface ThemeContextType {
   theme: AppTheme;
   themeName: ThemeName;
   customColors: CustomColors | null;
   backgroundSettings: BackgroundSettings;
+  supportRegion: SupportRegion;
   setTheme: (themeName: ThemeName) => void;
   setCustomColors: (colors: CustomColors) => void;
   setBackgroundSettings: (settings: BackgroundSettings) => void;
+  setSupportRegion: (region: SupportRegion) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -22,8 +26,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [customColors, setCustomColorsState] = useState<CustomColors | null>(null);
   const [backgroundSettings, setBackgroundSettingsState] = useState<BackgroundSettings>({ 
     scene: 'Ocean',
-    transparency: 15, // Default 15% transparency
+    transparency: 15,
   });
+  const [supportRegion, setSupportRegionState] = useState<SupportRegion>('United States');
 
   useEffect(() => {
     loadTheme();
@@ -33,8 +38,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     const savedTheme = await StorageService.getTheme();
     const savedCustomColors = await StorageService.getCustomColors();
     const savedBackgroundSettings = await StorageService.getBackgroundSettings();
+    const savedSupportRegion = await StorageService.getSupportRegion();
     
-    console.log('Loaded theme settings:', { savedTheme, savedBackgroundSettings });
+    console.log('Loaded theme settings:', { savedTheme, savedBackgroundSettings, savedSupportRegion });
     
     setThemeName(savedTheme);
     setCustomColorsState(savedCustomColors);
@@ -45,6 +51,18 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       transparency: savedBackgroundSettings.transparency ?? 15,
     };
     setBackgroundSettingsState(settingsWithTransparency);
+    
+    // Set support region - use saved region or detect from device locale
+    if (savedSupportRegion) {
+      console.log('Using saved support region:', savedSupportRegion);
+      setSupportRegionState(savedSupportRegion);
+    } else {
+      const deviceLocale = Localization.getLocales()[0]?.languageTag || 'en-US';
+      const detectedRegion = getDefaultRegionFromLocale(deviceLocale);
+      console.log('Detected support region from device locale:', deviceLocale, '→', detectedRegion);
+      setSupportRegionState(detectedRegion);
+      await StorageService.saveSupportRegion(detectedRegion);
+    }
     
     if (savedTheme === 'Custom' && savedCustomColors) {
       setThemeState({
@@ -91,15 +109,23 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     await StorageService.saveBackgroundSettings(settings);
   };
 
+  const setSupportRegion = async (region: SupportRegion) => {
+    console.log('Setting support region:', region);
+    setSupportRegionState(region);
+    await StorageService.saveSupportRegion(region);
+  };
+
   return (
     <ThemeContext.Provider value={{ 
       theme, 
       themeName, 
       customColors, 
       backgroundSettings,
+      supportRegion,
       setTheme, 
       setCustomColors,
       setBackgroundSettings,
+      setSupportRegion,
     }}>
       {children}
     </ThemeContext.Provider>

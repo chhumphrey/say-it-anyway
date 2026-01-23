@@ -1,6 +1,6 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Recipient, Message, UserProfile, ThemeName, CustomColors, BackgroundSettings } from '@/types';
+import { Recipient, Message, UserProfile, ThemeName, CustomColors, BackgroundSettings, SupportRegion } from '@/types';
 
 const RECIPIENTS_KEY = 'recipients';
 const MESSAGES_KEY = 'messages';
@@ -8,6 +8,7 @@ const PROFILE_KEY = 'profile';
 const THEME_KEY = 'theme';
 const CUSTOM_COLORS_KEY = 'custom_colors';
 const BACKGROUND_SETTINGS_KEY = 'background_settings';
+const SUPPORT_REGION_KEY = 'support_region';
 
 export class StorageService {
   // Recipients
@@ -278,6 +279,30 @@ export class StorageService {
       console.log('StorageService.saveBackgroundSettings: Successfully saved');
     } catch (error) {
       console.error('Error saving background settings:', error);
+      throw error;
+    }
+  }
+
+  // Support Region
+  static async getSupportRegion(): Promise<SupportRegion | null> {
+    try {
+      const data = await AsyncStorage.getItem(SUPPORT_REGION_KEY);
+      const region = data as SupportRegion | null;
+      console.log('StorageService.getSupportRegion:', region || 'No region saved');
+      return region;
+    } catch (error) {
+      console.error('Error loading support region:', error);
+      return null;
+    }
+  }
+
+  static async saveSupportRegion(region: SupportRegion): Promise<void> {
+    try {
+      console.log('StorageService.saveSupportRegion: Saving region', region);
+      await AsyncStorage.setItem(SUPPORT_REGION_KEY, region);
+      console.log('StorageService.saveSupportRegion: Successfully saved');
+    } catch (error) {
+      console.error('Error saving support region:', error);
       throw error;
     }
   }

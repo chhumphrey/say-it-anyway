@@ -94,3 +94,55 @@ export interface BackgroundSettings {
   customPhotoUri?: string;
   transparency: number; // 0-100, percentage of transparency
 }
+
+export type SupportRegion = 
+  | 'United States'
+  | 'United Kingdom'
+  | 'Canada'
+  | 'Australia'
+  | 'New Zealand'
+  | 'Ireland'
+  | 'India'
+  | 'South Africa'
+  | 'Germany'
+  | 'France'
+  | 'Spain'
+  | 'Italy'
+  | 'Netherlands'
+  | 'Belgium'
+  | 'Switzerland'
+  | 'Austria'
+  | 'Sweden'
+  | 'Norway'
+  | 'Denmark'
+  | 'Finland'
+  | 'Poland'
+  | 'Japan'
+  | 'South Korea'
+  | 'Singapore'
+  | 'Hong Kong'
+  | 'Brazil'
+  | 'Mexico'
+  | 'Argentina'
+  | 'Chile';
+
+export interface SupportResource {
+  name: string;
+  description: string;
+  phone?: string;
+  sms?: string;
+  website?: string;
+  type: 'crisis' | 'emergency' | 'support';
+  icon: 'phone' | 'message' | 'warning';
+}
+
+export interface RegionalSupportResources {
+  region: SupportRegion;
+  message: string;
+  resources: SupportResource[];
+  additionalResources: Array<{
+    title: string;
+    description: string;
+    url: string;
+  }>;
+}
