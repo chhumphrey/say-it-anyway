@@ -6,7 +6,8 @@ All notable changes to the Say It Anyway: Grief Journal project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## Internal testing version released
+This was the initial build of the application, the notes below show several iterations that happened prior to the app making it to test and then production.
 
 ### Added
 - Initial changelog documentation for GitHub pages
