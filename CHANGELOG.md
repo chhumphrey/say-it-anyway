@@ -6,10 +6,65 @@ All notable changes to the Say It Anyway: Grief Journal project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2025-01-XX
 
 ### Added
-- Initial changelog documentation for GitHub pages
+- **Location-Based Support Resources**
+  - Regional support resource customization based on user location
+  - Device locale detection for automatic default region selection
+  - Support for 28+ countries/regions worldwide
+  - Region selector in Settings screen
+  - Localized crisis hotlines, text lines, and emergency contacts
+  - Dynamic support resources display based on selected region
+
+- **Background Customization**
+  - Scene selection (Ocean, Forest, Mountains, Moody Sky, Dawn, Dusk)
+  - Custom photo upload for backgrounds
+  - Transparency slider for background opacity control
+  - Dynamic background generation based on color palette
+  - Local photo picker integration with camera and library access
+
+- **Enhanced Theme System**
+  - Custom color palette creation
+  - Improved theme persistence
+  - Better visual consistency across screens
+
+- **Help System**
+  - In-app help modal with comprehensive feature explanations
+  - Context-sensitive help content
+  - Easy access from main navigation
+
+### Changed
+- **Storage System**
+  - Migrated from SecureStore to AsyncStorage to overcome size limitations
+  - Improved data handling for larger recipient and message collections
+  - Better performance for audio file storage
+
+- **User Interface**
+  - Refined navigation structure
+  - Improved accessibility and contrast
+  - Enhanced visual feedback for user actions
+  - Better platform-specific adaptations (iOS/Android)
+
+### Removed
+- **Profile Feature**
+  - Removed Profile section (single-user app doesn't require profiles)
+  - Removed Profile navigation option from tab bar
+  - Removed Profile references from help documentation
+  - Removed redundant Home button from home screen
+
+### Fixed
+- Unique key warnings in list rendering (now using UUIDs)
+- Storage size limitations with large audio files
+- Theme persistence across app restarts
+- Background image transparency handling
+
+### Technical Improvements
+- Updated to Expo SDK 54
+- Improved TypeScript type safety
+- Enhanced error handling and logging
+- Better memory management for audio files
+- Optimized image loading and caching
 
 ## [1.0.0] - 2024
 
@@ -41,62 +96,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Mental Health Support**
   - Context-aware mental health screening
   - Rule-based pattern analysis for distress detection
-  - First-person expression detection
+  - First-person expression identification
   - Automatic support resources display when flagged
   - Emergency "!!!" button for immediate access to resources
-
-- **Location-Based Support Resources**
-  - Regional support resource customization
-  - Device locale detection for default region
-  - Support for multiple countries/regions worldwide
-  - Crisis hotlines by region
-  - Text line services
-  - Emergency contact numbers
-  - Localized support messages
-
-- **Supported Regions**
-  - United States
-  - United Kingdom
-  - Canada
-  - Australia
-  - New Zealand
-  - Ireland
-  - India
-  - South Africa
-  - Germany
-  - France
-  - Spain
-  - Italy
-  - Netherlands
-  - Belgium
-  - Switzerland
-  - Austria
-  - Sweden
-  - Norway
-  - Denmark
-  - Finland
-  - Japan
-  - South Korea
-  - Singapore
-  - Hong Kong
-  - Mexico
-  - Brazil
-  - Argentina
-  - Chile
 
 - **Theme System**
   - 6-8 calming color themes
   - Light and dark mode support
-  - Custom color palette creation
   - Theme persistence across sessions
   - Visually pleasing, accessible design
-
-- **Background Customization**
-  - Scene selection (Ocean, Forest, Mountains, Moody Sky, Dawn, Dusk)
-  - Custom photo upload for backgrounds
-  - Transparency slider for background opacity
-  - Dynamic background generation based on color palette
-  - Local photo picker integration
 
 - **User Interface**
   - Mobile-first, one-hand friendly design
@@ -107,29 +115,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Platform-specific optimizations
 
 - **Data Management**
-  - Local storage using AsyncStorage
+  - Local storage using SecureStore (later migrated to AsyncStorage)
   - Offline-first architecture
   - No cloud backend required
   - Secure data persistence
   - UUID-based unique identifiers
-
-- **Help & Support**
-  - In-app help modal with feature explanations
-  - Support resources screen with crisis contacts
-  - Calm, non-clinical language
-  - Easy access to emergency services
-
-### Changed
-- **Storage Migration**
-  - Migrated from SecureStore to AsyncStorage to avoid size limitations
-  - Improved data handling for larger recipient and message collections
-
-### Removed
-- **Profile Feature**
-  - Removed Profile section (single-user app)
-  - Removed Profile navigation option
-  - Removed Profile references from help documentation
-  - Removed Home button (redundant on home screen)
 
 ### Technical Details
 
@@ -194,12 +184,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reminder notifications
 - Memorial date tracking
 - Photo galleries for recipients
+- iCloud/Google Drive backup options
+- Widget support for quick access
+- Apple Watch companion app
 
 ---
 
 ## Version History Summary
 
-- **v1.0.0** - Initial release with core grief journaling features, location-based support resources, and comprehensive customization options
+- **v1.1.0** - Location-based support resources, background customization, enhanced themes, help system
+- **v1.0.0** - Initial release with core grief journaling features
 
 ---
 
