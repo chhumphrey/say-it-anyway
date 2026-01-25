@@ -2,7 +2,7 @@
   "expo": {
     "name": "Say It Anyway: Grief Journal",
     "slug": "Say It Anyway: Grief Journal",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/db734c9f-ab3a-4e5b-9326-6948ee2ad89f.png",
     "userInterfaceStyle": "automatic",
