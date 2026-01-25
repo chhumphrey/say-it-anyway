@@ -28,8 +28,8 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "your-apple-id@example.com",
-        "ascAppId": "your-asc-app-id",
+        "appleId": "chumphrey@gmail.com",
+        "ascAppId": "com.chumphrey.sayitanywaygj",
         "appleTeamId": "your-team-id"
       }
     }
