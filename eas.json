@@ -1,3 +1,4 @@
+
 {
   "cli": {
     "version": ">= 5.0.0"
@@ -29,8 +30,8 @@
     "production": {
       "ios": {
         "appleId": "chumphrey@gmail.com",
-        "ascAppId": "com.chumphrey.sayitanywaygj",
-        "appleTeamId": "your-team-id"
+        "ascAppId": "6757105574",
+        "appleTeamId": "8TGVQ4222V"
       }
     }
   }
