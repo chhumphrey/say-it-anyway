@@ -1,4 +1,4 @@
-// Initialize Natively console log capture before anything else
+// Initialize dev error logging before anything else
 import './utils/errorLogger';
 
 import 'expo-router/entry';

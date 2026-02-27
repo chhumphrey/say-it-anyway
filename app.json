@@ -2,7 +2,7 @@
   "expo": {
     "name": "Say It Anyway: Grief Journal",
     "slug": "Say It Anyway: Grief Journal",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/db734c9f-ab3a-4e5b-9326-6948ee2ad89f.png",
     "userInterfaceStyle": "automatic",
@@ -57,7 +57,8 @@
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photo library to select photos for recipient profiles.",
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to take photos for recipient profiles."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "scheme": "sayitanywaygj",
     "experiments": {
@@ -69,6 +70,5 @@
         "projectId": "f650038e-32b5-4670-b27b-19ee49823b1a"
       }
     }
-  },
-  "scheme": "Say It Anyway: Grief Journal"
+  }
 }

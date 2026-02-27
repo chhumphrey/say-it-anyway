@@ -49,6 +49,13 @@ function RootLayoutContent() {
             animation: 'fade',
           }}
         />
+        <Stack.Screen
+          name="backup-restore"
+          options={{
+            headerShown: false,
+            animation: 'default',
+          }}
+        />
       </Stack>
     </GestureHandlerRootView>
   );

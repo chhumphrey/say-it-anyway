@@ -346,6 +346,41 @@ export default function SettingsScreen() {
             />
           </TouchableOpacity>
 
+          <Text style={[styles.mainSectionTitle, { color: theme.colors.text, marginTop: 32 }]}>
+            Data Management
+          </Text>
+          <Text style={[styles.sectionDescription, { color: theme.colors.textSecondary }]}>
+            Back up your data or restore from a previous backup
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.regionCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+            onPress={() => router.push('/backup-restore')}
+          >
+            <View style={styles.regionContent}>
+              <IconSymbol
+                ios_icon_name="externaldrive.fill"
+                android_material_icon_name="backup"
+                size={24}
+                color={theme.colors.primary}
+              />
+              <View style={styles.regionTextContainer}>
+                <Text style={[styles.regionLabel, { color: theme.colors.textSecondary }]}>
+                  Device Transfer & Safety
+                </Text>
+                <Text style={[styles.regionValue, { color: theme.colors.text }]}>
+                  Backup & Restore
+                </Text>
+              </View>
+            </View>
+            <IconSymbol
+              ios_icon_name="chevron.right"
+              android_material_icon_name="chevron-right"
+              size={20}
+              color={theme.colors.textSecondary}
+            />
+          </TouchableOpacity>
+
           <View style={[styles.infoBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, marginTop: 24 }]}>
             <IconSymbol
               ios_icon_name="info.circle.fill"
