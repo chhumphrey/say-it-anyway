@@ -113,15 +113,7 @@ export default function EditRecipientScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            const recipients = await StorageService.getRecipients();
-            const filtered = recipients.filter(r => r.id !== id);
-            await StorageService.saveRecipients(filtered);
-            
-            // Also delete all messages for this recipient
-            const allMessages = await StorageService.getMessages();
-            const filteredMessages = allMessages.filter(m => m.recipientId !== id);
-            await StorageService.saveMessage(filteredMessages[0]); // This will overwrite
-            
+            await StorageService.deleteRecipient(id as string);
             router.replace('/(tabs)/(home)');
           },
         },

@@ -7,6 +7,27 @@ const config = getDefaultConfig(__dirname);
 
 config.resolver.unstable_enablePackageExports = true;
 
+// Fix: expo-router 57.0.19 uses require(".") inside navigationEvents/navigation.js,
+// which Metro's package-exports resolver misinterprets as a package self-reference
+// (resolving to expo-router's root build/index.js) rather than the local directory
+// index (navigationEvents/index.js). This creates a circular load that leaves
+// _1.emit = undefined, crashing on every navigation dispatch.
+// Workaround: intercept that one require and pin it to the correct file.
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (
+    moduleName === '.' &&
+    context.originModulePath &&
+    context.originModulePath.includes('expo-router/build/navigationEvents/navigation.js')
+  ) {
+    return {
+      filePath: path.resolve(path.dirname(context.originModulePath), 'index.js'),
+      type: 'sourceFile',
+    };
+  }
+  // Fall through to Metro's default resolver for everything else
+  return context.resolveRequest(context, moduleName, platform);
+};
+
 // Use turborepo to restore the cache when possible
 config.cacheStores = [
     new FileStore({ root: path.join(__dirname, 'node_modules', '.cache', 'metro') }),

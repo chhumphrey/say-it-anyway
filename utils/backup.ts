@@ -1,6 +1,6 @@
 
 import { Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import { File, Directory, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
@@ -11,7 +11,8 @@ import { Recipient, Message } from '@/types';
 const BACKUP_VERSION = 1;
 const LAST_BACKUP_KEY = 'last_backup_date';
 
-// Use string literal — FileSystem.EncodingType is undefined on web
+// All File/Directory usage below is native-only (gated by Platform.OS !== 'web'),
+// so the plain string literal works fine as the FileWriteOptions.encoding value.
 const BASE64 = 'base64' as const;
 
 interface BackupManifest {
@@ -70,8 +71,15 @@ function webDownload(bytes: Uint8Array, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-// Read picked file bytes on web using fetch (FileSystem is unavailable)
-async function webReadPickedFile(uri: string): Promise<Uint8Array> {
+// Read a document-picker-selected file's bytes via fetch rather than expo-file-system's
+// File API. expo-file-system's new permission model doesn't reliably recognize files that
+// other modules (like expo-document-picker's copyToCacheDirectory) wrote into the cache
+// directory as "internal" the way it does files we write ourselves via Paths.cache/
+// Paths.document, and rejects reads with "Missing 'READ' permission for accessing the
+// file" — see https://github.com/expo/expo/issues/41367 for the same failure elsewhere.
+// fetch() reads through the platform's networking stack instead, sidestepping that
+// bookkeeping entirely, and works the same way on web and native for a picked file's URI.
+async function readPickedFileBytes(uri: string): Promise<Uint8Array> {
   const response = await fetch(uri);
   if (!response.ok) throw new Error('Could not read the selected file.');
   const buffer = await response.arrayBuffer();
@@ -115,16 +123,14 @@ export async function createBackup(): Promise<void> {
     for (const message of messages) {
       if (message.type === 'audio' && message.audioUri) {
         try {
-          const fileInfo = await FileSystem.getInfoAsync(message.audioUri);
-          if (!fileInfo.exists) {
+          const audioFile = new File(message.audioUri);
+          if (!audioFile.exists) {
             console.log('backup.createBackup: Audio file missing, skipping:', message.id);
             continue;
           }
           const ext = message.audioUri.split('.').pop() || 'm4a';
           const zipPath = `audio/${message.id}.${ext}`;
-          const base64 = await FileSystem.readAsStringAsync(message.audioUri, {
-            encoding: BASE64,
-          });
+          const base64 = await audioFile.base64();
           zipFiles[zipPath] = base64ToUint8Array(base64);
           audioIndex[message.id] = zipPath;
           console.log('backup.createBackup: Packed audio for message', message.id);
@@ -149,12 +155,10 @@ export async function createBackup(): Promise<void> {
   if (Platform.OS === 'web') {
     webDownload(zipped, filename);
   } else {
-    const zipPath = `${FileSystem.cacheDirectory}${filename}`;
-    await FileSystem.writeAsStringAsync(zipPath, uint8ArrayToBase64(zipped), {
-      encoding: BASE64,
-    });
-    console.log('backup.createBackup: Zip written to', zipPath);
-    await Sharing.shareAsync(zipPath, {
+    const zipFile = new File(Paths.cache, filename);
+    zipFile.write(uint8ArrayToBase64(zipped), { encoding: BASE64 });
+    console.log('backup.createBackup: Zip written to', zipFile.uri);
+    await Sharing.shareAsync(zipFile.uri, {
       mimeType: 'application/zip',
       dialogTitle: 'Save Your Backup File',
       UTI: 'public.zip-archive',
@@ -183,14 +187,9 @@ export async function restoreFromBackup(): Promise<RestoreResult | null> {
   const file = pickerResult.assets[0];
   console.log('backup.restoreFromBackup: Selected file:', file.name, file.size, 'bytes');
 
-  // Read zip bytes — different approach per platform
-  let zipBytes: Uint8Array;
-  if (Platform.OS === 'web') {
-    zipBytes = await webReadPickedFile(file.uri);
-  } else {
-    const base64Zip = await FileSystem.readAsStringAsync(file.uri, { encoding: BASE64 });
-    zipBytes = base64ToUint8Array(base64Zip);
-  }
+  // Same read path on every platform — see readPickedFileBytes for why this avoids
+  // expo-file-system's File API for a document-picker-selected file.
+  const zipBytes = await readPickedFileBytes(file.uri);
 
   let unzipped: Record<string, Uint8Array>;
   try {
@@ -241,9 +240,15 @@ export async function restoreFromBackup(): Promise<RestoreResult | null> {
   }
 
   // Audio restoration is native-only; on web mark all packed audio as failed
-  const audioDir = Platform.OS !== 'web' ? `${FileSystem.documentDirectory}audio/` : null;
+  const audioDir = Platform.OS !== 'web' ? new Directory(Paths.document, 'audio') : null;
   if (audioDir) {
-    await FileSystem.makeDirectoryAsync(audioDir, { intermediates: true }).catch(() => {});
+    try {
+      // idempotent: true mirrors the previous .catch(() => {}) — don't fail restore
+      // just because the audio directory already exists from a prior restore.
+      audioDir.create({ intermediates: true, idempotent: true });
+    } catch {
+      // Swallow, same as before — a real problem will surface as a write failure below.
+    }
   }
 
   const newMessages: Message[] = [];
@@ -258,10 +263,10 @@ export async function restoreFromBackup(): Promise<RestoreResult | null> {
       if (audioDir && unzipped[zipPath]) {
         try {
           const ext = zipPath.split('.').pop() || 'm4a';
-          const newAudioPath = `${audioDir}${message.id}.${ext}`;
+          const newAudioFile = new File(audioDir, `${message.id}.${ext}`);
           const audioBase64 = uint8ArrayToBase64(unzipped[zipPath]);
-          await FileSystem.writeAsStringAsync(newAudioPath, audioBase64, { encoding: BASE64 });
-          message.audioUri = newAudioPath;
+          newAudioFile.write(audioBase64, { encoding: BASE64 });
+          message.audioUri = newAudioFile.uri;
           result.audioRestored++;
           console.log('backup.restoreFromBackup: Restored audio for message', message.id);
         } catch (err) {

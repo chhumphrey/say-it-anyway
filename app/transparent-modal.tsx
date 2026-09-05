@@ -1,10 +1,10 @@
 import { StyleSheet, Text, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { GlassView } from 'expo-glass-effect';
-import { useTheme } from '@react-navigation/native';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 export default function TransparentModal() {
-  const theme = useTheme();
+  const { theme } = useAppTheme();
 
   return (
     <Pressable style={styles.backdrop} onPress={() => router.back()}>
