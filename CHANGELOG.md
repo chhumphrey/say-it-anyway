@@ -6,6 +6,34 @@ All notable changes to the Say It Anyway: Grief Journal project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Backup & Restore**
+  - Create a full backup of recipients, messages, audio recordings, and settings as a shareable ZIP archive
+  - Share the backup via the native share sheet (iOS/Android) or download it directly (web)
+  - Restore from a previously created backup file, with duplicate-safe import — anything already on the device (matched by ID) is skipped rather than duplicated
+  - Audio files are re-linked to new device-local paths on restore; a failed audio restore is reported in the result summary without blocking the rest of the import
+  - Theme and device preferences are intentionally excluded from restore so the current device's settings are preserved
+  - New "Backup & Restore" screen, accessible from Settings > Data Management
+
+### Changed
+- **Compatibility**
+  - Updated to Expo SDK 57 (from SDK 54), including React Native, React, and all Expo module dependencies
+  - Migrated off the legacy `expo-file-system` API (which now throws instead of warning) to the new `File`/`Directory`/`Paths` class-based API
+  - Synced `app.json`'s plugin list and added a Metro resolver workaround for compatibility with the updated `expo-router`
+  - Refactored several components from React Navigation's theme hook to the app's own theme context, matching the rest of the app
+  - Removed deprecated global `expo-cli` usage; all scripts now use `npx expo`
+  - Removed leftover references to the "Natively" platform (unused server log-forwarding code, manifest fields)
+
+### Fixed
+- **Data loss on recipient deletion** — deleting a recipient removed the recipient record but left all of their messages in storage due to a bug that appended instead of overwriting; messages are now correctly removed along with the recipient
+- **Backup restore failing to read the selected file** — worked around a permission-check bug in the new `expo-file-system` API that could reject reading a backup file copied into the cache directory by the document picker
+
+### Technical Improvements
+- Upgraded `@typescript-eslint` from v6 to v8
+- Added `fflate`, `expo-sharing`, and `expo-document-picker` dependencies to support backup/restore
+
 ## [1.1.0] - 2025-01-XX
 
 ### Added
@@ -180,7 +208,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Advanced NLP for mental health screening
 - Additional language support
 - More regional support resources
-- Export/backup functionality
 - Reminder notifications
 - Memorial date tracking
 - Photo galleries for recipients

@@ -1,13 +1,14 @@
-import { StyleSheet, Text, View, Pressable } from 'react-native';
+import { StyleSheet, Text, View, Pressable, useColorScheme } from 'react-native';
 import { router } from 'expo-router';
 import { GlassView } from 'expo-glass-effect';
-import { useTheme } from '@react-navigation/native';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 export default function FormSheetModal() {
-  const theme = useTheme();
+  const { theme } = useAppTheme();
+  const colorScheme = useColorScheme();
 
   // Use a visible dark gray for dark mode instead of pure black
-  const backgroundColor = theme.dark
+  const backgroundColor = colorScheme === 'dark'
     ? 'rgb(28, 28, 30)' // Dark gray that's visible against black backgrounds
     : theme.colors.background;
 

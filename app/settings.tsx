@@ -15,8 +15,8 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
-import { ThemeName, themeNames, themes, backgroundScenes, getSceneImageUrl } from '@/utils/themes';
-import { CustomColors, BackgroundScene, SupportRegion } from '@/types';
+import { themeNames, themes, backgroundScenes, getSceneImageUrl } from '@/utils/themes';
+import { ThemeName, CustomColors, BackgroundScene, SupportRegion } from '@/types';
 import { allRegions } from '@/utils/supportResources';
 import Slider from '@react-native-community/slider';
 
