@@ -41,9 +41,15 @@ module.exports = {
   },
   overrides: [
     {
-      files: ['metro.config.js'],
+      // Plain Node/CommonJS files (not bundled by Metro) -- require()/__dirname/etc. are
+      // expected here, unlike the rest of the app's ES module source.
+      files: ['metro.config.js', 'scripts/**/*.js'],
+      env: {
+        node: true
+      },
       rules: {
-        '@typescript-eslint/no-var-requires': 'off'
+        '@typescript-eslint/no-var-requires': 'off',
+        '@typescript-eslint/no-require-imports': 'off'
       }
     }
   ]
