@@ -10,7 +10,8 @@
     "web": "EXPO_NO_TELEMETRY=1 npx expo start --web",
     "build:web": "npx expo export -p web && npx workbox generateSW workbox-config.js",
     "build:android": "npx expo prebuild -p android",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "train:classifier": "node scripts/train-self-harm-classifier.js"
   },
   "dependencies": {
     "@babel/plugin-proposal-export-namespace-from": "^7.18.9",

@@ -6,9 +6,13 @@ All notable changes to the Say It Anyway: Grief Journal project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.0] - 2026-09-07
 
 ### Added
+- **Hybrid Self-Harm Screening** — added an on-device statistical classifier alongside the
+  existing rule-based screening to catch phrasing the regex patterns miss, plus new detection
+  for self-injury language (previously uncovered). See `SELF_HARM_SCREENING.md` for full
+  design, data sources, and testing details.
 - **Backup & Restore**
   - Create a full backup of recipients, messages, audio recordings, and settings as a shareable ZIP archive
   - Share the backup via the native share sheet (iOS/Android) or download it directly (web)
@@ -34,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Upgraded `@typescript-eslint` from v6 to v8
 - Added `fflate`, `expo-sharing`, and `expo-document-picker` dependencies to support backup/restore
 
-## [1.1.0] - 2025-01-XX
+## [1.1.0] - 2026-01-24
 
 ### Added
 - **Location-Based Support Resources**
@@ -94,7 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Better memory management for audio files
 - Optimized image loading and caching
 
-## [1.0.0] - 2024
+## [1.0.0] - 2026-01-15
 
 ### Added
 - **Core Journaling Features**
@@ -219,6 +223,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History Summary
 
+- **v1.2.0** - Hybrid self-harm screening, backup & restore, Expo SDK 57 compatibility update
 - **v1.1.0** - Location-based support resources, background customization, enhanced themes, help system
 - **v1.0.0** - Initial release with core grief journaling features
 
