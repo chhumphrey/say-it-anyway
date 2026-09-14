@@ -19,6 +19,7 @@ import { StorageService } from '@/utils/storage';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { getSceneImageUrl } from '@/utils/themes';
 import { IconSymbol } from '@/components/IconSymbol';
+import { screenMessage } from '@/utils/mentalHealthScreening';
 
 interface AudioPlayerState {
   [messageId: string]: ReturnType<typeof useAudioPlayer>;
@@ -36,32 +37,47 @@ export default function RecipientDetailScreen() {
 
   console.log('RecipientDetailScreen render:', { id, recipientId: recipient?.id, messageCount: messages.length });
 
-  const loadData = useCallback(async () => {
-    try {
-      console.log('Loading data for recipient:', id);
-      setIsLoading(true);
-      
-      const recipients = await StorageService.getRecipients();
-      console.log('Total recipients loaded:', recipients.length);
-      
-      const found = recipients.find(r => r.id === id);
-      console.log('Found recipient:', found ? found.name : 'NOT FOUND');
-      setRecipient(found || null);
+  // Shared fetch, used by both the full load (which shows the loading
+  // screen) and the background poll (which must not -- see refreshSilently).
+  const fetchData = useCallback(async () => {
+    console.log('Loading data for recipient:', id);
+    const recipients = await StorageService.getRecipients();
+    console.log('Total recipients loaded:', recipients.length);
 
-      if (found) {
-        const allMessages = await StorageService.getMessagesForRecipient(id as string);
-        console.log('Messages loaded:', allMessages.length);
-        allMessages.forEach(m => console.log('  - Message:', m.id, m.type));
-        const sorted = allMessages.sort((a, b) => b.timestamp - a.timestamp);
-        setMessages(sorted);
-      }
-      
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Error loading data:', error);
-      setIsLoading(false);
+    const found = recipients.find(r => r.id === id);
+    console.log('Found recipient:', found ? found.name : 'NOT FOUND');
+    setRecipient(found || null);
+
+    if (found) {
+      const allMessages = await StorageService.getMessagesForRecipient(id as string);
+      console.log('Messages loaded:', allMessages.length);
+      allMessages.forEach(m => console.log('  - Message:', m.id, m.type));
+      const sorted = allMessages.sort((a, b) => b.timestamp - a.timestamp);
+      setMessages(sorted);
     }
   }, [id]);
+
+  const loadData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      await fetchData();
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchData]);
+
+  // Same fetch, but doesn't toggle isLoading -- used for the background
+  // transcription poll below, so it doesn't flash the full-screen loading
+  // state over the list every couple of seconds.
+  const refreshSilently = useCallback(async () => {
+    try {
+      await fetchData();
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    }
+  }, [fetchData]);
 
   useEffect(() => {
     console.log('RecipientDetailScreen useEffect triggered');
@@ -84,11 +100,11 @@ export default function RecipientDetailScreen() {
     if (!hasPending) return;
 
     const interval = setInterval(() => {
-      loadData();
+      refreshSilently();
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [messages, loadData]);
+  }, [messages, refreshSilently]);
 
   const toggleHidden = useCallback(async (message: Message) => {
     console.log('Toggling hidden for message:', message.id);
@@ -102,7 +118,18 @@ export default function RecipientDetailScreen() {
     const updatedMessage: Message = { ...message, transcript: newTranscript };
     await StorageService.updateMessage(updatedMessage);
     await loadData();
-  }, [loadData]);
+
+    // An edited transcript can introduce (or remove) content that the
+    // original automatic transcript didn't have, so re-screen it just like
+    // a freshly-completed background transcription would be.
+    if (newTranscript.trim()) {
+      const screeningResult = screenMessage(newTranscript.trim());
+      if (screeningResult.isFlagged) {
+        console.log('Edited transcript flagged for mental health concerns:', screeningResult.matchedPatterns);
+        router.replace('/support-resources');
+      }
+    }
+  }, [loadData, router]);
 
   const toggleExpanded = (messageId: string) => {
     console.log('Toggling expanded for message:', messageId);
