@@ -9,6 +9,8 @@ import {
   Image,
   LayoutChangeEvent,
   ImageBackground,
+  ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
@@ -73,9 +75,31 @@ export default function RecipientDetailScreen() {
     }, [loadData])
   );
 
+  // Transcription runs in the background after a recording is saved. While
+  // any message on screen is still 'pending', poll for updates so
+  // "Transcribing..." turns into the real transcript without the user
+  // having to leave and re-open this screen.
+  useEffect(() => {
+    const hasPending = messages.some(m => m.transcriptionStatus === 'pending');
+    if (!hasPending) return;
+
+    const interval = setInterval(() => {
+      loadData();
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [messages, loadData]);
+
   const toggleHidden = useCallback(async (message: Message) => {
     console.log('Toggling hidden for message:', message.id);
     const updatedMessage = { ...message, isHidden: !message.isHidden };
+    await StorageService.updateMessage(updatedMessage);
+    await loadData();
+  }, [loadData]);
+
+  const updateTranscript = useCallback(async (message: Message, newTranscript: string) => {
+    console.log('Updating transcript for message:', message.id);
+    const updatedMessage: Message = { ...message, transcript: newTranscript };
     await StorageService.updateMessage(updatedMessage);
     await loadData();
   }, [loadData]);
@@ -320,6 +344,7 @@ export default function RecipientDetailScreen() {
                 isExpanded={expandedMessages.has(message.id)}
                 onToggleExpanded={() => toggleExpanded(message.id)}
                 onToggleHidden={() => toggleHidden(message)}
+                onUpdateTranscript={(newTranscript) => updateTranscript(message, newTranscript)}
                 formatDate={formatDate}
                 formatDuration={formatDuration}
               />
@@ -337,6 +362,7 @@ interface MessageCardProps {
   isExpanded: boolean;
   onToggleExpanded: () => void;
   onToggleHidden: () => void;
+  onUpdateTranscript: (newTranscript: string) => void;
   formatDate: (timestamp: number) => string;
   formatDuration: (seconds: number) => string;
 }
@@ -347,6 +373,7 @@ function MessageCard({
   isExpanded,
   onToggleExpanded,
   onToggleHidden,
+  onUpdateTranscript,
   formatDate,
   formatDuration,
 }: MessageCardProps) {
@@ -354,6 +381,25 @@ function MessageCard({
   const [truncatedTextHeight, setTruncatedTextHeight] = useState(0);
   const [transcriptHeight, setTranscriptHeight] = useState(0);
   const [truncatedTranscriptHeight, setTruncatedTranscriptHeight] = useState(0);
+  const [isEditingTranscript, setIsEditingTranscript] = useState(false);
+  const [editedTranscript, setEditedTranscript] = useState(message.transcript ?? '');
+
+  const startEditingTranscript = () => {
+    setEditedTranscript(message.transcript ?? '');
+    setIsEditingTranscript(true);
+  };
+
+  const cancelEditingTranscript = () => {
+    setIsEditingTranscript(false);
+  };
+
+  const saveEditedTranscript = () => {
+    setIsEditingTranscript(false);
+    const trimmed = editedTranscript.trim();
+    if (trimmed !== (message.transcript ?? '')) {
+      onUpdateTranscript(trimmed);
+    }
+  };
 
   const handleFullTextLayout = (event: LayoutChangeEvent) => {
     const { height } = event.nativeEvent.layout;
@@ -458,44 +504,100 @@ function MessageCard({
         </View>
       )}
 
-      {message.transcript && message.type === 'audio' && (
+      {message.type === 'audio' && message.transcriptionStatus === 'pending' && (
+        <View style={[styles.transcriptBox, styles.transcribingRow, { backgroundColor: theme.colors.background }]}>
+          <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+          <Text style={[styles.transcriptLabel, { color: theme.colors.textSecondary, marginBottom: 0, marginLeft: 8 }]}>
+            Transcribing...
+          </Text>
+        </View>
+      )}
+
+      {message.type === 'audio' && message.transcriptionStatus === 'failed' && !message.transcript && (
         <View style={[styles.transcriptBox, { backgroundColor: theme.colors.background }]}>
           <Text style={[styles.transcriptLabel, { color: theme.colors.textSecondary }]}>
-            Transcript:
+            Transcription unavailable for this recording
           </Text>
+        </View>
+      )}
 
-          <View style={styles.hiddenMeasurement}>
-            <Text
-              style={[styles.transcriptText, { color: theme.colors.text }]}
-              onLayout={handleFullTranscriptLayout}
-            >
-              {message.transcript}
+      {message.transcript && message.type === 'audio' && (
+        <View style={[styles.transcriptBox, { backgroundColor: theme.colors.background }]}>
+          <View style={styles.transcriptHeaderRow}>
+            <Text style={[styles.transcriptLabel, { color: theme.colors.textSecondary }]}>
+              Transcript:
             </Text>
+            {!isEditingTranscript && (
+              <TouchableOpacity onPress={startEditingTranscript} hitSlop={8}>
+                <IconSymbol
+                  ios_icon_name="pencil"
+                  android_material_icon_name="edit"
+                  size={16}
+                  color={theme.colors.textSecondary}
+                />
+              </TouchableOpacity>
+            )}
           </View>
 
-          <View style={styles.hiddenMeasurement}>
-            <Text
-              style={[styles.transcriptText, { color: theme.colors.text }]}
-              numberOfLines={4}
-              onLayout={handleTruncatedTranscriptLayout}
-            >
-              {message.transcript}
-            </Text>
-          </View>
+          {isEditingTranscript ? (
+            <>
+              <TextInput
+                style={[
+                  styles.transcriptInput,
+                  styles.transcriptText,
+                  { color: theme.colors.text, borderColor: theme.colors.border },
+                ]}
+                value={editedTranscript}
+                onChangeText={setEditedTranscript}
+                multiline
+                autoFocus
+                textAlignVertical="top"
+              />
+              <View style={styles.transcriptEditActions}>
+                <TouchableOpacity onPress={cancelEditingTranscript} style={styles.transcriptEditButton}>
+                  <Text style={[styles.showAllText, { color: theme.colors.textSecondary }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={saveEditedTranscript} style={styles.transcriptEditButton}>
+                  <Text style={[styles.showAllText, { color: theme.colors.primary }]}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.hiddenMeasurement}>
+                <Text
+                  style={[styles.transcriptText, { color: theme.colors.text }]}
+                  onLayout={handleFullTranscriptLayout}
+                >
+                  {message.transcript}
+                </Text>
+              </View>
 
-          <Text
-            style={[styles.transcriptText, { color: theme.colors.text }]}
-            numberOfLines={isExpanded ? undefined : 4}
-          >
-            {message.transcript}
-          </Text>
+              <View style={styles.hiddenMeasurement}>
+                <Text
+                  style={[styles.transcriptText, { color: theme.colors.text }]}
+                  numberOfLines={4}
+                  onLayout={handleTruncatedTranscriptLayout}
+                >
+                  {message.transcript}
+                </Text>
+              </View>
 
-          {transcriptNeedsTruncation && (
-            <TouchableOpacity onPress={onToggleExpanded} style={styles.showAllButton}>
-              <Text style={[styles.showAllText, { color: theme.colors.primary }]}>
-                {isExpanded ? 'Show Less' : 'Show All'}
+              <Text
+                style={[styles.transcriptText, { color: theme.colors.text }]}
+                numberOfLines={isExpanded ? undefined : 4}
+              >
+                {message.transcript}
               </Text>
-            </TouchableOpacity>
+
+              {transcriptNeedsTruncation && (
+                <TouchableOpacity onPress={onToggleExpanded} style={styles.showAllButton}>
+                  <Text style={[styles.showAllText, { color: theme.colors.primary }]}>
+                    {isExpanded ? 'Show Less' : 'Show All'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
           )}
         </View>
       )}
@@ -805,6 +907,16 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
   },
+  transcriptHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  transcribingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   transcriptLabel: {
     fontSize: 12,
     fontWeight: '600',
@@ -813,5 +925,21 @@ const styles = StyleSheet.create({
   transcriptText: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  transcriptInput: {
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 8,
+    minHeight: 80,
+  },
+  transcriptEditActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+    gap: 16,
+  },
+  transcriptEditButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 4,
   },
 });

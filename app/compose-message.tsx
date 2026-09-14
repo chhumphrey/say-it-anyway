@@ -24,7 +24,7 @@ import { generateUUID } from '@/utils/uuid';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { screenMessage } from '@/utils/mentalHealthScreening';
-import { transcribeAudio, getTranscriptionMessage } from '@/utils/transcription';
+import { startBackgroundTranscription } from '@/utils/transcriptionRunner';
 
 export default function ComposeMessageScreen() {
   const router = useRouter();
@@ -36,7 +36,6 @@ export default function ComposeMessageScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
   const [isCheckingPermission, setIsCheckingPermission] = useState(true);
-  const [isTranscribing, setIsTranscribing] = useState(false);
 
   const audioRecorder = useAudioRecorder(RecordingPresets.LOW_QUALITY);
 
@@ -171,34 +170,7 @@ export default function ComposeMessageScreen() {
 
     try {
       console.log('Saving message...');
-      
-      let transcript: string | undefined = undefined;
-      let transcriptionStatus: 'pending' | 'completed' | 'failed' | 'none' = 'none';
-      let transcriptionError: string | undefined = undefined;
-      
-      // Attempt transcription for audio messages
-      if (type === 'audio' && audioRecorder.uri) {
-        const audioDuration = recordingDuration;
-        
-        console.log('Attempting to transcribe audio...');
-        setIsTranscribing(true);
-        transcriptionStatus = 'pending';
-        
-        const transcriptionResult = await transcribeAudio(audioRecorder.uri, audioDuration);
-        
-        if (transcriptionResult.success && transcriptionResult.transcript) {
-          transcript = transcriptionResult.transcript;
-          transcriptionStatus = 'completed';
-          console.log('Transcription successful:', transcript);
-        } else {
-          transcriptionStatus = 'failed';
-          transcriptionError = transcriptionResult.error;
-          console.log('Transcription failed:', transcriptionResult.error);
-        }
-        
-        setIsTranscribing(false);
-      }
-      
+
       const message: Message = {
         id: generateUUID(),
         recipientId: recipientId as string,
@@ -207,9 +179,12 @@ export default function ComposeMessageScreen() {
         textContent: type === 'text' ? textContent.trim() : undefined,
         audioUri: type === 'audio' ? audioRecorder.uri || undefined : undefined,
         audioDuration: type === 'audio' ? recordingDuration : undefined,
-        transcript: transcript,
-        transcriptionStatus: transcriptionStatus,
-        transcriptionError: transcriptionError,
+        transcript: undefined,
+        // Audio transcription happens on-device in the background after
+        // saving, so it never blocks the Save button. Text messages have
+        // nothing to transcribe.
+        transcriptionStatus: type === 'audio' ? 'pending' : 'none',
+        transcriptionError: undefined,
         isHidden: false,
       };
 
@@ -225,27 +200,19 @@ export default function ComposeMessageScreen() {
         await StorageService.saveRecipients(recipients);
       }
 
-      // Screen message for mental health concerns
-      // For text messages, use the text content
-      // For audio messages, use the transcript if available
-      let contentToScreen = '';
-      let shouldScreen = false;
-      
-      if (type === 'text' && textContent.trim()) {
-        contentToScreen = textContent.trim();
-        shouldScreen = true;
-        console.log('Screening text message for mental health concerns');
-      } else if (type === 'audio' && transcript && transcript !== '(Transcription pending – coming soon)') {
-        contentToScreen = transcript;
-        shouldScreen = true;
-        console.log('Screening transcribed audio for mental health concerns');
-      } else if (type === 'audio' && !transcript) {
-        console.log('Audio message cannot be screened - no transcript available');
-        shouldScreen = false;
+      if (type === 'audio') {
+        // Fire-and-forget: transcribes on-device, then persists the
+        // transcript and re-runs mental health screening once it's ready
+        // (see utils/transcriptionRunner.ts for why screening has to wait).
+        startBackgroundTranscription(message);
       }
-      
-      if (shouldScreen && contentToScreen) {
-        const screeningResult = screenMessage(contentToScreen);
+
+      // Screen message for mental health concerns.
+      // Only text messages have content to screen immediately; audio
+      // messages are screened later, once their transcript is ready.
+      if (type === 'text' && textContent.trim()) {
+        console.log('Screening text message for mental health concerns');
+        const screeningResult = screenMessage(textContent.trim());
         console.log('Mental health screening result:', screeningResult);
 
         if (screeningResult.isFlagged) {
@@ -255,15 +222,14 @@ export default function ComposeMessageScreen() {
           return;
         }
       }
-      
-      // If not flagged or couldn't be screened, go back
+
+      // If not flagged (or screening is deferred), go back
       router.back();
     } catch (error) {
       console.error('Save error:', error);
       Alert.alert('Error', 'Could not save message. Please try again.');
     } finally {
       setIsSaving(false);
-      setIsTranscribing(false);
     }
   };
 
@@ -281,8 +247,8 @@ export default function ComposeMessageScreen() {
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
           {type === 'text' ? 'Write Message' : 'Record Audio'}
         </Text>
-        <TouchableOpacity onPress={handleSave} style={styles.saveButton} disabled={isSaving || isTranscribing}>
-          {isSaving || isTranscribing ? (
+        <TouchableOpacity onPress={handleSave} style={styles.saveButton} disabled={isSaving}>
+          {isSaving ? (
             <ActivityIndicator size="small" color={theme.colors.primary} />
           ) : (
             <Text style={[styles.saveText, { color: theme.colors.primary }]}>Save</Text>
@@ -389,7 +355,7 @@ export default function ComposeMessageScreen() {
                     color={theme.colors.textSecondary}
                   />
                   <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-                    {getTranscriptionMessage()}
+                    Your recording is transcribed automatically on this device after saving. Transcription never leaves your phone.
                   </Text>
                 </View>
               </>
