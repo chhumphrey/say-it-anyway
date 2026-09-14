@@ -20,6 +20,18 @@ import { useAppTheme } from '@/contexts/ThemeContext';
 import { getSceneImageUrl } from '@/utils/themes';
 import { IconSymbol } from '@/components/IconSymbol';
 import { screenMessage } from '@/utils/mentalHealthScreening';
+import { startBackgroundTranscription } from '@/utils/transcriptionRunner';
+
+// Messages saved before on-device transcription existed went through a
+// placeholder that stored this exact string as the "transcript" and marked
+// the message 'completed' -- treat it as no transcript at all, both so it
+// isn't displayed as if it were real and so the "Transcribe" action (for
+// pre-transcription recordings) still offers to transcribe it for real.
+const LEGACY_PLACEHOLDER_TRANSCRIPT = '(Transcription pending – coming soon)';
+
+function hasRealTranscript(message: Message): boolean {
+  return !!message.transcript && message.transcript !== LEGACY_PLACEHOLDER_TRANSCRIPT;
+}
 
 interface AudioPlayerState {
   [messageId: string]: ReturnType<typeof useAudioPlayer>;
@@ -111,6 +123,18 @@ export default function RecipientDetailScreen() {
     const updatedMessage = { ...message, isHidden: !message.isHidden };
     await StorageService.updateMessage(updatedMessage);
     await loadData();
+  }, [loadData]);
+
+  // Manually kicks off transcription for a message that doesn't have one yet
+  // (an entry recorded before this feature existed, or on-device transcription
+  // never producing a status at all) or that failed before -- reuses the exact
+  // same background pipeline a fresh recording uses.
+  const transcribeMessage = useCallback(async (message: Message) => {
+    console.log('Manually triggering transcription for message:', message.id);
+    const updatedMessage: Message = { ...message, transcriptionStatus: 'pending', transcriptionError: undefined };
+    await StorageService.updateMessage(updatedMessage);
+    await loadData();
+    startBackgroundTranscription(updatedMessage);
   }, [loadData]);
 
   const updateTranscript = useCallback(async (message: Message, newTranscript: string) => {
@@ -372,6 +396,7 @@ export default function RecipientDetailScreen() {
                 onToggleExpanded={() => toggleExpanded(message.id)}
                 onToggleHidden={() => toggleHidden(message)}
                 onUpdateTranscript={(newTranscript) => updateTranscript(message, newTranscript)}
+                onTranscribe={() => transcribeMessage(message)}
                 formatDate={formatDate}
                 formatDuration={formatDuration}
               />
@@ -390,6 +415,7 @@ interface MessageCardProps {
   onToggleExpanded: () => void;
   onToggleHidden: () => void;
   onUpdateTranscript: (newTranscript: string) => void;
+  onTranscribe: () => void;
   formatDate: (timestamp: number) => string;
   formatDuration: (seconds: number) => string;
 }
@@ -401,6 +427,7 @@ function MessageCard({
   onToggleExpanded,
   onToggleHidden,
   onUpdateTranscript,
+  onTranscribe,
   formatDate,
   formatDuration,
 }: MessageCardProps) {
@@ -540,15 +567,40 @@ function MessageCard({
         </View>
       )}
 
-      {message.type === 'audio' && message.transcriptionStatus === 'failed' && !message.transcript && (
+      {message.type === 'audio' && message.transcriptionStatus === 'failed' && !hasRealTranscript(message) && (
         <View style={[styles.transcriptBox, { backgroundColor: theme.colors.background }]}>
           <Text style={[styles.transcriptLabel, { color: theme.colors.textSecondary }]}>
             Transcription unavailable for this recording
           </Text>
+          <TouchableOpacity onPress={onTranscribe} style={styles.showAllButton}>
+            <Text style={[styles.showAllText, { color: theme.colors.primary }]}>Try Again</Text>
+          </TouchableOpacity>
         </View>
       )}
 
-      {message.transcript && message.type === 'audio' && (
+      {message.type === 'audio' &&
+        message.transcriptionStatus !== 'pending' &&
+        message.transcriptionStatus !== 'failed' &&
+        !hasRealTranscript(message) && (
+          <View style={[styles.transcriptBox, { backgroundColor: theme.colors.background }]}>
+            <Text style={[styles.transcriptLabel, { color: theme.colors.textSecondary }]}>
+              This recording was saved before on-device transcription was added.
+            </Text>
+            <TouchableOpacity onPress={onTranscribe} style={styles.transcribeButton}>
+              <IconSymbol
+                ios_icon_name="waveform"
+                android_material_icon_name="graphic-eq"
+                size={16}
+                color={theme.colors.primary}
+              />
+              <Text style={[styles.showAllText, { color: theme.colors.primary, marginLeft: 6 }]}>
+                Transcribe
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+      {hasRealTranscript(message) && message.type === 'audio' && (
         <View style={[styles.transcriptBox, { backgroundColor: theme.colors.background }]}>
           <View style={styles.transcriptHeaderRow}>
             <Text style={[styles.transcriptLabel, { color: theme.colors.textSecondary }]}>
@@ -888,6 +940,12 @@ const styles = StyleSheet.create({
   },
   showAllButton: {
     marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  transcribeButton: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
     alignSelf: 'flex-start',
   },
   showAllText: {
