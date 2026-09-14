@@ -115,9 +115,17 @@ function trainNaiveBayes(examples) {
     ];
   }
 
+  // An unseen token (not in the training vocabulary) carries no real evidence either
+  // way, so both classes should treat it identically. Using each class's own
+  // Laplace-smoothing denominator here (the naive per-class formula) instead gives an
+  // unseen word higher probability under whichever class had fewer total training
+  // tokens -- a pure artifact of class size, not signal -- which systematically biased
+  // ordinary messages full of untrained vocabulary (people's names, everyday words)
+  // toward "concern". Pooling the denominator makes unseen tokens score-neutral.
+  const pooledDenominator = (totalTokens.benign + totalTokens.concern) / 2 + vocabSize;
   const unseenLogProb = [
-    Math.log(1 / (totalTokens.benign + vocabSize)),
-    Math.log(1 / (totalTokens.concern + vocabSize)),
+    Math.log(1 / pooledDenominator),
+    Math.log(1 / pooledDenominator),
   ];
 
   return { classes, logPriors, wordLogProb, unseenLogProb, vocabSize };

@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Say It Anyway: Grief Journal",
-    "slug": "Say It Anyway: Grief Journal",
+    "slug": "say-it-anyway-gj",
     "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/db734c9f-ab3a-4e5b-9326-6948ee2ad89f.png",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.chumphrey.sayitanywaygj",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSMicrophoneUsageDescription": "This app needs access to your microphone to record audio messages for your loved ones.",
@@ -30,7 +30,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.chumphrey.sayitanywaygj",
-      "versionCode": 1,
+      "versionCode": 9,
       "permissions": [
         "RECORD_AUDIO",
         "READ_EXTERNAL_STORAGE",
@@ -45,6 +45,7 @@
       "expo-font",
       "expo-router",
       "expo-web-browser",
+      "expo-dev-client",
       [
         "expo-audio",
         {
@@ -63,7 +64,17 @@
       "expo-secure-store",
       "expo-sharing",
       "expo-splash-screen",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "# --- react-native-webview: WebView JavaScript bridge -----------------------\n# Android's WebView calls @JavascriptInterface-annotated methods by name via\n# reflection from injected JS (window.ReactNativeWebView.postMessage). Without\n# this rule R8 strips/renames those methods and postMessage/onMessage stop\n# working, but only in release builds -- a widely reported issue for this\n# library (react-native-webview/react-native-webview #975, #754, #1014, #2292).\n-keepclassmembers class * {\n  @android.webkit.JavascriptInterface *;\n}\n\n# --- react-native-screens: native Fragment-backed navigation ---------------\n# Ships no proguard-rules.pro of its own. Android's FragmentManager\n# instantiates Screen fragments by class name during state restoration (e.g.\n# after a config change or process death); if R8 renames or strips these\n# classes, this throws \"Unable to instantiate fragment\n# com.swmansion.rnscreens.ScreenFragment\" -- a crash, not a silent failure\n# (software-mansion/react-native-screens #1644, #2394, #3317).\n-keep class com.swmansion.rnscreens.** { *; }\n\n# --- react-native-gesture-handler -------------------------------------------\n# Also ships no proguard-rules.pro. Kept broadly as a defensive measure,\n# consistent with how its sibling libraries from the same maintainer\n# (react-native-reanimated, react-native-worklets) already protect their own\n# packages this way in their own shipped consumer rules.\n-keep class com.swmansion.gesturehandler.** { *; }\n\n# --- react-native-maps -------------------------------------------------------\n# Present in package.json (not currently imported by app code, but still\n# autolinked into the compiled binary) and ships no proguard-rules.pro.\n# Community-documented requirement to stop R8 stripping the native Google\n# Maps bridge and marker-rendering code in release builds.\n-keep class com.airbnb.android.react.maps.** { *; }\n-keep class com.google.android.gms.maps.** { *; }\n-keep interface com.google.android.gms.maps.** { *; }\n-keep class com.google.maps.android.** { *; }\n\n# --- @react-native-async-storage/async-storage ------------------------------\n# This app's entire data layer (recipients, messages, profile, theme,\n# background settings, backup index -- see utils/storage.ts) goes through\n# AsyncStorage. It ships no proguard-rules.pro and has multiple reported\n# R8-related release-build failures (react-native-async-storage/async-storage\n# #43, #718, #889). Highest-priority rule in this file: if this breaks, the\n# whole app's persistence layer breaks.\n-keep class com.reactnativecommunity.asyncstorage.** { *; }\n\n# --- whisper.rn: native transcription bridge --------------------------------\n# whisper.rn's own README asks for this rule directly when minification is\n# enabled: its JNI bridge classes (com.rnwhisper.*) are looked up by name from\n# native code, and R8 renaming/stripping them under minification breaks model\n# loading and transcribe() calls in release builds -- on-device transcription\n# would silently stop working.\n-keep class com.rnwhisper.** { *; }\n"
+          }
+        }
+      ]
     ],
     "scheme": "sayitanywaygj",
     "experiments": {
