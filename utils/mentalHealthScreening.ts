@@ -73,9 +73,19 @@ const runRuleBasedScreening = (text: string): ScreeningResult => {
       description: 'Belief that others would be better off'
     },
     {
-      pattern: /\b(i|i'm|i am).{0,20}(ready to|prepared to|about to).{0,20}(end it|die|kill myself)\b/i,
+      pattern: /\b(i|i'm|i am).{0,20}(ready to|prepared to|about to|should just|should).{0,20}(end it|die|kill myself)\b/i,
       weight: 'high' as const,
       description: 'Imminent suicidal intent'
+    },
+    {
+      pattern: /\b(jump|jumping).{0,15}(off|from).{0,25}(bridge|building|roof|overpass|balcony|cliff)\b/i,
+      weight: 'high' as const,
+      description: 'Suicidal ideation with method - jumping (C-SSRS: thoughts with method)'
+    },
+    {
+      pattern: /\b(bridge|building|roof|overpass|balcony|cliff).{0,25}(looks?|seems?|would be|is).{0,15}(good|perfect|right|high enough).{0,15}(to jump|for jumping)\b/i,
+      weight: 'high' as const,
+      description: 'Suicidal ideation with method - jumping (C-SSRS: thoughts with method)'
     },
     {
       pattern: /\b(goodbye|farewell).{0,30}(forever|for good|won't see you|last time)\b/i,
@@ -258,6 +268,35 @@ const runRuleBasedScreening = (text: string): ScreeningResult => {
   };
 };
 
+// Splits text into overlapping 3-sentence windows so the classifier can be run
+// per-window (see below) instead of only on the whole message.
+//
+// Single isolated sentences turned out to be too small a unit: short sentences are the
+// noisiest input for a Naive Bayes model trained on this few examples, and testing found
+// a completely benign one ("I've been meaning to organize my closet...") scoring 0.92 on
+// its own. A 3-sentence window keeps enough surrounding context to average that kind of
+// single-sentence noise back out, while still being short enough that a concerning
+// sentence isn't diluted away by an otherwise-long, benign message the way scoring the
+// whole message at once would (verified against both failure modes -- see the classifier
+// stage comment below).
+const SEGMENT_WINDOW_SIZE = 3;
+
+function splitIntoSegments(text: string): string[] {
+  const sentences = text
+    .split(/(?<=[.!?])\s+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+  if (sentences.length === 0) {
+    return [text.trim()];
+  }
+
+  const windows: string[] = [];
+  for (let i = 0; i < sentences.length; i++) {
+    windows.push(sentences.slice(i, i + SEGMENT_WINDOW_SIZE).join(' '));
+  }
+  return windows;
+}
+
 // ─── Hybrid screening (rules first, on-device classifier for ambiguous cases) ──────
 //
 // This is a supplementary heuristic layer, NOT a validated clinical screening tool. The
@@ -281,9 +320,23 @@ export const screenMessage = (text: string): ScreeningResult => {
   // Otherwise the rules found nothing, or only a low/medium signal -- exactly where a
   // hand-written pattern list is weakest (novel phrasing, no matching regex). Run the
   // on-device classifier as a second opinion.
+  //
+  // The classifier scores whatever string it's given as one bag of words, so a single
+  // concerning sentence buried in an otherwise-long, benign message (a full journal
+  // entry, not just a one-line message) gets diluted by everything else and can score
+  // far lower than it would on its own -- confirmed with a real transcript where a
+  // concerning sentence scored 0.90 in isolation but ~0.002 with its actual (benign)
+  // surrounding paragraph attached. Score the whole message AND each 3-sentence window
+  // within it (see splitIntoSegments), and take the highest score found anywhere -- never
+  // lower than scoring the whole message alone would give, so this can only make
+  // screening more sensitive, not less.
   let modelScore: number;
   try {
-    modelScore = classifyText(text).score;
+    const segments = splitIntoSegments(text);
+    modelScore = Math.max(
+      classifyText(text).score,
+      ...segments.map(segment => classifyText(segment).score)
+    );
   } catch (err) {
     console.warn('mentalHealthScreening: classifier failed, falling back to rules only', err);
     return { ...ruleResult, source: 'rules' };
@@ -351,6 +404,19 @@ export const testScreening = () => {
     "This traffic is actually going to kill me, I've been sitting here an hour",
     "I used to think about not being here anymore, but I don't feel that way now",
     "I'm having a hard week but my kids give me a reason to keep going",
+    // New: method-specific ideation and "should" phrasing (previously undetected by any
+    // rule pattern -- found via a real transcribed recording during testing)
+    "Yea, I think the bridge looks good to jump off of today",
+    "I should just end it",
+    // New: a real multi-sentence message where the concerning content is one sentence
+    // out of several benign ones -- the classifier's whole-document scoring diluted this
+    // to ~0.002 (missed) before segment/window scoring was added
+    "Okay this is another audio test. Now that we have corrected the other things, it looks like things are still functional, which is great. Nothing matters anymore and I don't see the point of tomorrow. The weather has been nice lately, not too hot.",
+    // New: a real benign multi-sentence journal entry, included specifically because one
+    // of its sentences in isolation ("I've been meaning to organize my closet...") scores
+    // 0.92 on its own -- a single-sentence noise trap for the classifier that a 3-sentence
+    // window (rather than single sentences) needs to average back out
+    "Today was a pretty good day overall. I went for a walk in the park and saw some ducks by the pond. My sister called and we talked about her new job, she seems really happy about it. Later I made dinner, just pasta with some vegetables, nothing fancy. I've been meaning to organize my closet for weeks and finally got around to it this afternoon. Found an old jacket I forgot I had. The weather has been nice lately, not too hot. I think I'll read a book before bed tonight instead of watching TV. Tomorrow I have a dentist appointment in the morning, which I'm not looking forward to, but it's just a routine cleaning. Overall a calm, uneventful kind of day and that's honestly fine by me.",
   ];
 
   console.log('=== MENTAL HEALTH SCREENING TESTS ===');
