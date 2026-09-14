@@ -1,7 +1,8 @@
 
 {
   "cli": {
-    "version": ">= 5.0.0"
+    "version": ">= 5.0.0",
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -32,6 +33,10 @@
         "appleId": "chumphrey@gmail.com",
         "ascAppId": "6757105574",
         "appleTeamId": "8TGVQ4222V"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./google-play-service-account.json",
+        "track": "production"
       }
     }
   }
