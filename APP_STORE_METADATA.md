@@ -1,9 +1,25 @@
 
-# App Store Metadata - Version 1.1.0
+# App Store Metadata - Version 1.3.0
 
-Copy and paste this content into App Store Connect for the 1.1.0 update.
+Copy and paste this content into App Store Connect for the 1.3.0 update.
 
-## What's New in This Version
+## What's New in This Version (1.3.0)
+
+```
+Version 1.3.0 brings on-device speech-to-text to your audio journal entries:
+
+• On-Device Transcription: Audio messages are now automatically transcribed to text, entirely on your device -- your recordings and their transcripts never leave your phone
+
+• Editable Transcripts: Fix up a transcript any time after it's created
+
+• Retroactive Transcription: Transcribe recordings you made before this feature existed
+
+• Improved Support Screening: Sharpened our on-device mental health screening to catch concerning phrasing that could previously slip through in a longer message, and fixed a bias that could occasionally flag ordinary, benign text
+
+As always, your data stays completely private and secure on your device. No cloud storage, no data collection, just a safe space for your thoughts.
+```
+
+## What's New in Version 1.1.0 (historical)
 
 ```
 Version 1.1.0 brings powerful new features to help you on your grief journey:
@@ -97,7 +113,7 @@ Private Grief Journaling
 ## Promotional Text (170 characters max)
 
 ```
-Version 1.1.0: Location-based crisis support for 28+ countries, custom backgrounds, enhanced themes, and improved performance. Your private space for healing.
+Version 1.3.0: On-device speech-to-text for audio journal entries -- transcribed entirely on your phone, never in the cloud. Your private space for healing.
 ```
 
 ## App Category
@@ -156,48 +172,56 @@ Not required - app has no login or account system.
 ### Notes for Reviewer
 
 ```
-Thank you for reviewing Say It Anyway: Grief Journal v1.1.0.
+Thank you for reviewing Say It Anyway: Grief Journal v1.3.0.
 
-This is an UPDATE to the existing app (v1.0.0 → v1.1.0).
+This is an UPDATE to the existing app (v1.2.0 → v1.3.0).
 
 KEY FEATURES TO TEST:
 
-1. LOCATION-BASED SUPPORT RESOURCES
-   - Open Settings → scroll to "Support Resources Region"
-   - Select different countries (US, UK, Canada, etc.)
-   - Tap the "!!!" button on home screen
-   - Verify support resources change based on selected region
-   - Test phone/text/web links (they will open respective apps)
+1. ON-DEVICE AUDIO TRANSCRIPTION
+   - Create a message and tap microphone icon
+   - Grant microphone permission when prompted
+   - Record a short message and save it
+   - A progress screen appears: on first use only, it downloads a one-time
+     speech-to-text model (~60MB), then transcribes the recording
+   - The resulting transcript is editable from the message
+   - Older recordings (made before this update) show a "Transcribe" action
+     to transcribe them retroactively
 
-2. BACKGROUND CUSTOMIZATION
-   - Open Settings → "Background Scene"
-   - Select different scenes (Ocean, Forest, Mountains, etc.)
-   - Try "Custom Photo" and upload a photo
-   - Adjust transparency slider
-   - Background should appear on all screens
-
-3. MENTAL HEALTH SCREENING
+2. MENTAL HEALTH SCREENING
    - Create a recipient (tap + button)
    - Create a message with concerning text like "I want to hurt myself"
    - After saving, support resources screen should appear automatically
+   - For an audio message, this screening runs once its transcript is ready
    - This is a safety feature, not a bug
 
-4. AUDIO RECORDING
-   - Create a message and tap microphone icon
-   - Grant microphone permission when prompted
-   - Record a short message
-   - Audio should play back and show transcription
+3. LOCATION-BASED SUPPORT RESOURCES
+   - Open Settings → scroll to "Support Resources Region"
+   - Select different countries (US, UK, Canada, etc.)
+   - Tap the "SOS" button on home screen
+   - Verify support resources change based on selected region
+
+4. BACKGROUND CUSTOMIZATION
+   - Open Settings → "Background Scene"
+   - Select different scenes (Ocean, Forest, Mountains, etc.)
+   - Try "Custom Photo" and upload a photo
 
 PRIVACY NOTES:
 - All data stored locally on device
-- No network requests (except for opening external support links)
+- No network requests transmit any user data. The only network activity in
+  the app is: (a) opening external support/crisis links, and (b) a one-time
+  download of the public speech-to-text model file itself on first use of
+  audio transcription (model weights only, cached locally afterward, never
+  re-fetched, and never containing or transmitting any recording or
+  transcript)
 - No analytics or tracking
 - No user accounts or authentication
 
 UPGRADE NOTES:
-- Users upgrading from v1.0.0 will have their data automatically migrated
+- Users upgrading from an earlier version will have their data automatically migrated
 - No user action required for migration
 - All existing recipients and messages will be preserved
+- Existing audio recordings are not transcribed automatically on upgrade; use the new "Transcribe" action per recording
 
 The app is designed to provide a private, safe space for grief journaling with immediate access to mental health support when needed.
 
@@ -282,24 +306,23 @@ Thank you for your time and consideration.
 
 ### For "What's New" Field:
 ```
-Version 1.1.0 brings powerful new features to help you on your grief journey:
+Version 1.3.0 brings on-device speech-to-text to your audio journal entries:
 
-• Location-Based Support: Access crisis resources tailored to your region with support for 28+ countries worldwide
-• Custom Backgrounds: Personalize your experience with beautiful scenes or your own photos with adjustable transparency
-• Enhanced Themes: Create custom color palettes that bring you comfort and peace
-• Help System: New in-app help to guide you through all features
-• Improved Performance: Better storage handling for your messages and audio recordings
+• On-Device Transcription: Audio messages are now automatically transcribed to text, entirely on your device -- your recordings and their transcripts never leave your phone
+• Editable Transcripts: Fix up a transcript any time after it's created
+• Retroactive Transcription: Transcribe recordings you made before this feature existed
+• Improved Support Screening: Sharpened our on-device mental health screening to catch concerning phrasing that could previously slip through in a longer message, and fixed a bias that could occasionally flag ordinary, benign text
 
 As always, your data stays completely private and secure on your device. No cloud storage, no data collection, just a safe space for your thoughts.
 ```
 
 ### For App Review Notes:
 ```
-This is an UPDATE (v1.0.0 → v1.1.0). Key new features: location-based support resources (28+ countries), custom backgrounds, enhanced themes. Test by: 1) Changing region in Settings and verifying support resources update, 2) Selecting background scenes, 3) Recording audio message. Mental health screening may trigger support screen with concerning text - this is intentional. All data stored locally, no network requests except external support links. Thank you!
+This is an UPDATE (v1.2.0 → v1.3.0). Key new feature: on-device audio transcription via a bundled speech-to-text model (whisper.rn) -- recordings and transcripts never leave the device. Test by: 1) Recording an audio message and saving it (a one-time ~60MB model download happens on first use, then transcription runs), 2) Editing the resulting transcript, 3) Using the "Transcribe" action on a pre-existing recording. Mental health screening may trigger support screen with concerning text - this is intentional, and for audio messages now runs once the transcript is ready rather than at save time. All data stored locally; the only network requests are external support links and the one-time model download. Thank you!
 ```
 
 ---
 
-**Last Updated**: January 2025
-**Version**: 1.1.0
-**Build**: 2
+**Last Updated**: 2026-09-21
+**Version**: 1.3.0
+**Build**: 3

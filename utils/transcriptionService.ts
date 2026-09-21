@@ -24,6 +24,23 @@ const TMP_DIR_NAME = 'whisper-tmp';
 // promise instead of re-initializing (and re-downloading) the model.
 let whisperContextPromise: Promise<WhisperContext> | null = null;
 
+export interface TranscriptionDownloadProgress {
+  bytesWritten: number;
+  totalBytes: number;
+}
+
+export interface TranscriptionAttemptCallbacks {
+  // Fired only when the model actually needs downloading (never on a cached
+  // model), driven by the download layer's own progress events -- whisper.rn
+  // itself only accepts a local file path and exposes no download progress.
+  onDownloadProgress?: (progress: TranscriptionDownloadProgress) => void;
+  // Fired once the model is ready (downloaded/cached and initialized) and
+  // the actual transcription is about to start. whisper.rn exposes no real
+  // progress signal for file-based transcription, so this is a single
+  // start marker, not a percentage.
+  onTranscribingStart?: () => void;
+}
+
 function getModelsDirectory(): Directory {
   const dir = new Directory(Paths.document, MODELS_DIR_NAME);
   if (!dir.exists) {
@@ -32,21 +49,31 @@ function getModelsDirectory(): Directory {
   return dir;
 }
 
-async function ensureModelDownloaded(): Promise<File> {
+async function ensureModelDownloaded(
+  onDownloadProgress?: (progress: TranscriptionDownloadProgress) => void
+): Promise<File> {
   const modelFile = new File(getModelsDirectory(), MODEL_FILENAME);
   if (modelFile.exists) {
     return modelFile;
   }
   console.log('TranscriptionService: downloading base.en model (one-time, then cached locally)...');
-  const downloaded = await File.downloadFileAsync(MODEL_URL, getModelsDirectory(), { idempotent: true });
+  const task = File.createDownloadTask(MODEL_URL, getModelsDirectory(), {
+    onProgress: onDownloadProgress,
+  });
+  const downloaded = await task.downloadAsync();
+  if (!downloaded) {
+    throw new Error('Model download did not complete');
+  }
   console.log('TranscriptionService: model downloaded to', downloaded.uri);
   return downloaded;
 }
 
-async function getWhisperContext(): Promise<WhisperContext> {
+async function getWhisperContext(
+  onDownloadProgress?: (progress: TranscriptionDownloadProgress) => void
+): Promise<WhisperContext> {
   if (!whisperContextPromise) {
     whisperContextPromise = (async () => {
-      const modelFile = await ensureModelDownloaded();
+      const modelFile = await ensureModelDownloaded(onDownloadProgress);
       return initWhisper({ filePath: modelFile.uri });
     })().catch((error) => {
       // Allow the next transcribe() call to retry instead of permanently
@@ -89,8 +116,9 @@ export const TranscriptionService = {
    * it isn't cached yet); every subsequent call reuses the same model
    * instance.
    */
-  async transcribe(audioUri: string): Promise<string> {
-    const context = await getWhisperContext();
+  async transcribe(audioUri: string, callbacks?: TranscriptionAttemptCallbacks): Promise<string> {
+    const context = await getWhisperContext(callbacks?.onDownloadProgress);
+    callbacks?.onTranscribingStart?.();
     const { path: wavPath, isTemporary } = await ensureWavFile(audioUri);
 
     try {

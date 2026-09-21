@@ -1,6 +1,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Recipient, Message, UserProfile, ThemeName, CustomColors, BackgroundSettings, SupportRegion } from '@/types';
+import { normalizeMessage } from '@/utils/transcriptionState';
 
 const RECIPIENTS_KEY = 'recipients';
 const MESSAGES_KEY = 'messages';
@@ -95,9 +96,9 @@ export class StorageService {
   static async getMessages(): Promise<Message[]> {
     try {
       const data = await AsyncStorage.getItem(MESSAGES_KEY);
-      const messages = data ? JSON.parse(data) : [];
+      const messages: Message[] = data ? JSON.parse(data) : [];
       console.log('StorageService.getMessages:', messages.length, 'messages loaded');
-      return messages;
+      return messages.map(normalizeMessage);
     } catch (error) {
       console.error('Error loading messages:', error);
       return [];

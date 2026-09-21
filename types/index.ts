@@ -14,7 +14,19 @@ export interface Recipient {
   isDefault?: boolean;
 }
 
-export type TranscriptionStatus = 'pending' | 'completed' | 'failed' | 'none';
+// 'none' -- not applicable (text messages have nothing to transcribe).
+// 'untranscribed' -- no attempt in progress; the initial state for a new
+//   audio message and the state after a user declines a retry or a
+//   background-recovery prompt.
+// 'pending' -- an attempt is actively running right now.
+// 'failed' -- display-only transitional state shown briefly while a
+//   retry prompt is up after a failed attempt; resolves immediately to
+//   either another 'pending' attempt or back to 'untranscribed'.
+// 'unavailable' -- terminal. Reached once transcriptionAttempts hits the
+//   cap. No further prompting.
+// 'successful' -- terminal. A transcript was produced and self-harm
+//   screening has completed on it.
+export type TranscriptionStatus = 'none' | 'untranscribed' | 'pending' | 'failed' | 'unavailable' | 'successful';
 
 export interface Message {
   id: string;
@@ -27,6 +39,14 @@ export interface Message {
   transcript?: string;
   transcriptionStatus?: TranscriptionStatus;
   transcriptionError?: string;
+  // Number of transcription attempts that have actually run and failed for
+  // this message. Never incremented by a decline or an ignored prompt.
+  // Capped at MAX_TRANSCRIPTION_ATTEMPTS (see utils/transcriptionAttempt.ts).
+  transcriptionAttempts?: number;
+  // How many times the background-recovery banner has been dismissed or
+  // ignored for this message without a real attempt running. Reset to 0
+  // whenever a real attempt starts. See utils/transcriptionAttempt.ts.
+  transcriptionBannerDismissals?: number;
   isHidden: boolean;
 }
 

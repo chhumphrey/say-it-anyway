@@ -20,18 +20,9 @@ import { useAppTheme } from '@/contexts/ThemeContext';
 import { getSceneImageUrl } from '@/utils/themes';
 import { IconSymbol } from '@/components/IconSymbol';
 import { screenMessage } from '@/utils/mentalHealthScreening';
-import { startBackgroundTranscription } from '@/utils/transcriptionRunner';
-
-// Messages saved before on-device transcription existed went through a
-// placeholder that stored this exact string as the "transcript" and marked
-// the message 'completed' -- treat it as no transcript at all, both so it
-// isn't displayed as if it were real and so the "Transcribe" action (for
-// pre-transcription recordings) still offers to transcribe it for real.
-const LEGACY_PLACEHOLDER_TRANSCRIPT = '(Transcription pending – coming soon)';
-
-function hasRealTranscript(message: Message): boolean {
-  return !!message.transcript && message.transcript !== LEGACY_PLACEHOLDER_TRANSCRIPT;
-}
+import { hasRealTranscript } from '@/utils/transcriptionState';
+import { MAX_TRANSCRIPTION_ATTEMPTS, attemptCountLabel } from '@/utils/transcriptionAttempt';
+import { TranscriptionAttemptModal, type TranscriptionAttemptFinish } from '@/components/TranscriptionAttemptModal';
 
 interface AudioPlayerState {
   [messageId: string]: ReturnType<typeof useAudioPlayer>;
@@ -46,6 +37,7 @@ export default function RecipientDetailScreen() {
   const [showHidden, setShowHidden] = useState(false);
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
+  const [attemptMessage, setAttemptMessage] = useState<Message | null>(null);
 
   console.log('RecipientDetailScreen render:', { id, recipientId: recipient?.id, messageCount: messages.length });
 
@@ -103,10 +95,11 @@ export default function RecipientDetailScreen() {
     }, [loadData])
   );
 
-  // Transcription runs in the background after a recording is saved. While
-  // any message on screen is still 'pending', poll for updates so
-  // "Transcribing..." turns into the real transcript without the user
-  // having to leave and re-open this screen.
+  // While an attempt is actively running (driven by the modal below), poll
+  // for updates so "Transcribing..." turns into the real result without the
+  // user having to leave and re-open this screen. This never kicks off a
+  // new attempt on its own -- see PendingTranscriptionBanner for how a
+  // message stuck in 'pending' from an interrupted attempt gets recovered.
   useEffect(() => {
     const hasPending = messages.some(m => m.transcriptionStatus === 'pending');
     if (!hasPending) return;
@@ -125,16 +118,18 @@ export default function RecipientDetailScreen() {
     await loadData();
   }, [loadData]);
 
-  // Manually kicks off transcription for a message that doesn't have one yet
-  // (an entry recorded before this feature existed, or on-device transcription
-  // never producing a status at all) or that failed before -- reuses the exact
-  // same background pipeline a fresh recording uses.
-  const transcribeMessage = useCallback(async (message: Message) => {
-    console.log('Manually triggering transcription for message:', message.id);
-    const updatedMessage: Message = { ...message, transcriptionStatus: 'pending', transcriptionError: undefined };
-    await StorageService.updateMessage(updatedMessage);
+  // Opens the active-message modal for a message that doesn't have a real
+  // transcript yet (an entry recorded before this feature existed, one that
+  // failed before, or one recovered from the pending banner) -- runs the
+  // exact same attempt flow a fresh recording uses.
+  const transcribeMessage = useCallback((message: Message) => {
+    console.log('Manually starting transcription attempt for message:', message.id);
+    setAttemptMessage(message);
+  }, []);
+
+  const handleAttemptFinished = useCallback(async (_result: TranscriptionAttemptFinish) => {
+    setAttemptMessage(null);
     await loadData();
-    startBackgroundTranscription(updatedMessage);
   }, [loadData]);
 
   const updateTranscript = useCallback(async (message: Message, newTranscript: string) => {
@@ -404,6 +399,8 @@ export default function RecipientDetailScreen() {
           )}
         </ScrollView>
       </View>
+
+      <TranscriptionAttemptModal message={attemptMessage} onFinished={handleAttemptFinished} />
     </ImageBackground>
   );
 }
@@ -567,38 +564,43 @@ function MessageCard({
         </View>
       )}
 
-      {message.type === 'audio' && message.transcriptionStatus === 'failed' && !hasRealTranscript(message) && (
-        <View style={[styles.transcriptBox, { backgroundColor: theme.colors.background }]}>
-          <Text style={[styles.transcriptLabel, { color: theme.colors.textSecondary }]}>
-            Transcription unavailable for this recording
-          </Text>
-          <TouchableOpacity onPress={onTranscribe} style={styles.showAllButton}>
-            <Text style={[styles.showAllText, { color: theme.colors.primary }]}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
       {message.type === 'audio' &&
-        message.transcriptionStatus !== 'pending' &&
-        message.transcriptionStatus !== 'failed' &&
+        (message.transcriptionStatus === 'untranscribed' || message.transcriptionStatus === 'failed') &&
         !hasRealTranscript(message) && (
           <View style={[styles.transcriptBox, { backgroundColor: theme.colors.background }]}>
             <Text style={[styles.transcriptLabel, { color: theme.colors.textSecondary }]}>
-              This recording was saved before on-device transcription was added.
+              {(message.transcriptionAttempts ?? 0) > 0
+                ? 'This recording could not be transcribed.'
+                : 'This recording has not been transcribed yet.'}
             </Text>
-            <TouchableOpacity onPress={onTranscribe} style={styles.transcribeButton}>
-              <IconSymbol
-                ios_icon_name="waveform"
-                android_material_icon_name="graphic-eq"
-                size={16}
-                color={theme.colors.primary}
-              />
-              <Text style={[styles.showAllText, { color: theme.colors.primary, marginLeft: 6 }]}>
-                Transcribe
+            {(message.transcriptionAttempts ?? 0) > 0 && (
+              <Text style={[styles.transcriptText, { color: theme.colors.textSecondary, marginBottom: 8 }]}>
+                {attemptCountLabel(message.transcriptionAttempts ?? 0)}
               </Text>
-            </TouchableOpacity>
+            )}
+            {(message.transcriptionAttempts ?? 0) < MAX_TRANSCRIPTION_ATTEMPTS && (
+              <TouchableOpacity onPress={onTranscribe} style={styles.transcribeButton}>
+                <IconSymbol
+                  ios_icon_name="waveform"
+                  android_material_icon_name="graphic-eq"
+                  size={16}
+                  color={theme.colors.primary}
+                />
+                <Text style={[styles.showAllText, { color: theme.colors.primary, marginLeft: 6 }]}>
+                  {(message.transcriptionAttempts ?? 0) > 0 ? 'Try Again' : 'Transcribe'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
+
+      {message.type === 'audio' && message.transcriptionStatus === 'unavailable' && (
+        <View style={[styles.transcriptBox, { backgroundColor: theme.colors.background }]}>
+          <Text style={[styles.transcriptLabel, { color: theme.colors.textSecondary }]}>
+            Transcription unavailable for this message.
+          </Text>
+        </View>
+      )}
 
       {hasRealTranscript(message) && message.type === 'audio' && (
         <View style={[styles.transcriptBox, { backgroundColor: theme.colors.background }]}>

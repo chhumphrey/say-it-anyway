@@ -24,7 +24,7 @@ import { generateUUID } from '@/utils/uuid';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { screenMessage } from '@/utils/mentalHealthScreening';
-import { startBackgroundTranscription } from '@/utils/transcriptionRunner';
+import { TranscriptionAttemptModal, type TranscriptionAttemptFinish } from '@/components/TranscriptionAttemptModal';
 
 export default function ComposeMessageScreen() {
   const router = useRouter();
@@ -36,6 +36,7 @@ export default function ComposeMessageScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
   const [isCheckingPermission, setIsCheckingPermission] = useState(true);
+  const [attemptMessage, setAttemptMessage] = useState<Message | null>(null);
 
   const audioRecorder = useAudioRecorder(RecordingPresets.LOW_QUALITY);
 
@@ -180,11 +181,12 @@ export default function ComposeMessageScreen() {
         audioUri: type === 'audio' ? audioRecorder.uri || undefined : undefined,
         audioDuration: type === 'audio' ? recordingDuration : undefined,
         transcript: undefined,
-        // Audio transcription happens on-device in the background after
-        // saving, so it never blocks the Save button. Text messages have
-        // nothing to transcribe.
-        transcriptionStatus: type === 'audio' ? 'pending' : 'none',
+        // The active-message modal (shown right after saving) drives the
+        // actual attempt and moves this to 'pending' itself. Text messages
+        // have nothing to transcribe.
+        transcriptionStatus: type === 'audio' ? 'untranscribed' : 'none',
         transcriptionError: undefined,
+        transcriptionAttempts: 0,
         isHidden: false,
       };
 
@@ -201,10 +203,13 @@ export default function ComposeMessageScreen() {
       }
 
       if (type === 'audio') {
-        // Fire-and-forget: transcribes on-device, then persists the
-        // transcript and re-runs mental health screening once it's ready
-        // (see utils/transcriptionRunner.ts for why screening has to wait).
-        startBackgroundTranscription(message);
+        // Hand off to the active-message modal: it runs the real attempt
+        // (transcribes on-device, screens the transcript the instant it
+        // resolves -- never waiting on this screen -- and marks the
+        // message successful/failed/unavailable). Navigation happens once
+        // it reports back via handleAttemptFinished.
+        setAttemptMessage(message);
+        return;
       }
 
       // Screen message for mental health concerns.
@@ -231,6 +236,15 @@ export default function ComposeMessageScreen() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleAttemptFinished = (result: TranscriptionAttemptFinish) => {
+    setAttemptMessage(null);
+    if (result.outcome === 'success' && result.flagged) {
+      // Already navigated to /support-resources from inside the attempt.
+      return;
+    }
+    router.back();
   };
 
   return (
@@ -363,6 +377,8 @@ export default function ComposeMessageScreen() {
           </View>
         )}
       </ScrollView>
+
+      <TranscriptionAttemptModal message={attemptMessage} onFinished={handleAttemptFinished} />
     </View>
   );
 }

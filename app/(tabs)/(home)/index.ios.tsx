@@ -16,6 +16,7 @@ import { StorageService } from '@/utils/storage';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { getSceneImageUrl } from '@/utils/themes';
 import { IconSymbol } from '@/components/IconSymbol';
+import { PendingTranscriptionBanner } from '@/components/PendingTranscriptionBanner';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -118,6 +119,8 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        <PendingTranscriptionBanner />
 
         <ScrollView
           style={styles.scrollView}

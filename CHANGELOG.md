@@ -6,6 +6,25 @@ All notable changes to the Say It Anyway: Grief Journal project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-09-21
+
+### Added
+- **On-Device Transcription** — audio journal entries are now transcribed to text entirely on the device, via a bundled Whisper (`whisper.rn`) speech-to-text model. Nothing about the audio or its transcript ever leaves the phone; the only network activity is a one-time download of the public model weights themselves, cached locally afterward.
+  - Transcription starts automatically after saving a new recording, with a foreground progress view (model download progress, then a "Transcribing…" indicator).
+  - Failed attempts can be retried, up to 3 attempts per recording, with the attempt count always shown.
+  - Recordings made before this feature existed can be transcribed retroactively via a "Transcribe" action.
+  - Transcripts are editable after the fact.
+  - A recording interrupted mid-transcription (e.g. the app was closed before it finished) is recovered via a non-blocking banner on next launch, rather than being silently left unscreened.
+  - New `AudioWavDecoder` native module (`modules/audio-wav-decoder`) decodes compressed recordings (.m4a / .3gp) to the raw WAV format Whisper requires, using each platform's own decoder (AVAssetReader / MediaExtractor+MediaCodec) rather than bundling ffmpeg.
+
+### Fixed
+- **Self-harm classifier false-flagging ordinary text** — a Laplace-smoothing bias in the on-device classifier's handling of unseen words made plain benign messages ("Apple banana cherry grape") score as concerning; the smoothing denominator is now pooled across classes so unseen words carry no signal either way.
+- **Self-harm screening missing concerning content diluted in a longer message** — a single concerning sentence surrounded by enough benign text could score well below the flagging threshold when scored as one whole-message bag of words. Screening now also scores overlapping 3-sentence windows within a message and flags on the highest score found anywhere. Also added rule coverage for "I should just end it" and method-specific ideation phrasing that no existing pattern caught.
+
+### Technical Improvements
+- Enabled R8 minification and resource shrinking for Android release builds, with proguard keep-rules for every native dependency that needs one under minification (WebView JS bridge, react-native-screens, react-native-gesture-handler, react-native-maps, AsyncStorage, whisper.rn's JNI bridge).
+- Added the Android submit configuration (Google Play service account, production track) to `eas.json`.
+
 ## [1.2.0] - 2026-09-07
 
 ### Added
