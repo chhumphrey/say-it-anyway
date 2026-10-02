@@ -38,6 +38,17 @@
         "serviceAccountKeyPath": "./google-play-service-account.json",
         "track": "production"
       }
+    },
+    "internal": {
+      "ios": {
+        "appleId": "chumphrey@gmail.com",
+        "ascAppId": "6757105574",
+        "appleTeamId": "8TGVQ4222V"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./google-play-service-account.json",
+        "track": "internal"
+      }
     }
   }
 }
