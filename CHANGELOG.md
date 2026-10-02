@@ -6,6 +6,18 @@ All notable changes to the Say It Anyway: Grief Journal project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-10-02
+
+### Fixed
+- **App Store rejection (Guideline 2.5.4)** — the app declared the "audio" background mode in Info.plist with no corresponding feature, because `expo-audio`'s config plugin defaults background playback to enabled and nothing in `app.json` overrode it. Background recording and playback are explicitly disabled now; the app remains foreground-only by design.
+- **Inaccurate recording duration across interruptions** — the displayed and saved duration of an audio message was tracked with a plain timer that kept counting through phone calls, Siri, and other interruptions that natively pause recording, so the saved duration could be longer than the actual audio content. Duration is now read from the native recorder's own pause-aware clock.
+- **Recording left in a stuck state after an unrecoverable native failure** — a rare native-level failure (e.g. an encode error or a media-services reset) could leave the screen showing "Stop Recording" for a recorder that had already died, with no way to save or retry. The app now detects this and prompts to try again.
+- **Background-stop behavior fixed per platform** — on iOS, recording still stops automatically (and the file is saved) the moment the app is backgrounded, since there's no background audio capability to keep the session alive. On Android, the app now lets the OS's own pause/resume handling carry a recording across a brief app-switch instead of ending it early.
+
+### Technical Improvements
+- Removed `expo-secure-store`, `react-native-maps`, and `@bacons/apple-targets` — confirmed unused anywhere in the app (the first was declaring a Face ID permission for a feature that doesn't exist; the other two were dead native code with no corresponding feature, confirmed via git history to have never shipped). Removed the orphaned `contexts/WidgetContext.tsx` scaffold file along with them.
+- Consolidated the microphone/camera/photo-library permission descriptions to a single source of truth (previously declared in two places with different wording; only one was ever actually used).
+
 ## [1.3.0] - 2026-09-21
 
 ### Added

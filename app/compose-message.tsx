@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,14 +9,19 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  AppState,
+  AppStateStatus,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { 
-  useAudioRecorder, 
-  RecordingPresets, 
+import {
+  useAudioRecorder,
+  useAudioRecorderState,
+  RecordingPresets,
   setAudioModeAsync,
   requestRecordingPermissionsAsync,
   getRecordingPermissionsAsync,
+  type RecordingStatus,
 } from 'expo-audio';
 import { Message } from '@/types';
 import { StorageService } from '@/utils/storage';
@@ -32,13 +37,53 @@ export default function ComposeMessageScreen() {
   const { theme } = useAppTheme();
   const [textContent, setTextContent] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-  const [recordingDuration, setRecordingDuration] = useState(0);
+  // Mirrors `isRecording` synchronously (state updates are batched/async,
+  // and the native status-update event below can arrive in the same tick
+  // as our own stop() call -- the ref lets that handler tell "we just
+  // stopped it ourselves" apart from "it stopped on its own").
+  const isRecordingRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
   const [isCheckingPermission, setIsCheckingPermission] = useState(true);
   const [attemptMessage, setAttemptMessage] = useState<Message | null>(null);
+  // Explains an unexpected end-of-recording to the user (background stop,
+  // or the native layer ending the take on its own). Null the rest of the
+  // time.
+  const [interruptionNotice, setInterruptionNotice] = useState<string | null>(null);
 
-  const audioRecorder = useAudioRecorder(RecordingPresets.LOW_QUALITY);
+  // The native recorder already pauses/resumes itself across transient
+  // audio-session interruptions (phone calls, Siri, alarms -- see
+  // expo-audio's AVAudioSession/AudioFocus interruption handling), so we
+  // don't need to react to those ourselves. What we do need is to catch the
+  // cases it can't recover from (encode error, media services reset) so the
+  // UI doesn't sit there saying "Stop Recording" for a recorder that has
+  // already died.
+  const handleRecordingStatusUpdate = useCallback((status: RecordingStatus) => {
+    if (!status.isFinished || !isRecordingRef.current) {
+      // Either mid-recording (metering/etc. updates) or this is the event
+      // for our own explicit stop() call, already handled there.
+      return;
+    }
+    console.warn('Recording ended on its own:', status);
+    isRecordingRef.current = false;
+    setIsRecording(false);
+    if (status.hasError || !status.url) {
+      Alert.alert(
+        'Recording Interrupted',
+        "Something interrupted the audio system and this recording couldn't be completed. Please try recording again."
+      );
+    } else {
+      setInterruptionNotice('Recording stopped unexpectedly, but what you recorded has been saved below.');
+    }
+  }, []);
+
+  const audioRecorder = useAudioRecorder(RecordingPresets.LOW_QUALITY, handleRecordingStatusUpdate);
+  // Native-truth duration -- counts only actually-captured audio, so it
+  // correctly freezes during a pause (e.g. an incoming call) instead of
+  // drifting ahead of what's really in the file, the way a JS setInterval
+  // timer would.
+  const recorderState = useAudioRecorderState(audioRecorder, 250);
+  const recordingSeconds = Math.round(recorderState.durationMillis / 1000);
 
   const configureAudioMode = useCallback(async () => {
     try {
@@ -106,18 +151,6 @@ export default function ComposeMessageScreen() {
     }
   }, [type, checkAndRequestPermissions]);
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isRecording) {
-      interval = setInterval(() => {
-        setRecordingDuration(prev => prev + 1);
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isRecording]);
-
   const startRecording = async () => {
     if (!hasPermission) {
       Alert.alert('Permission Required', 'Please grant microphone permission first.');
@@ -129,8 +162,9 @@ export default function ComposeMessageScreen() {
       console.log('Starting recording...');
       await audioRecorder.prepareToRecordAsync();
       await audioRecorder.record();
+      isRecordingRef.current = true;
       setIsRecording(true);
-      setRecordingDuration(0);
+      setInterruptionNotice(null);
       console.log('Recording started');
     } catch (error) {
       console.error('Recording error:', error);
@@ -138,7 +172,8 @@ export default function ComposeMessageScreen() {
     }
   };
 
-  const stopRecording = async () => {
+  const stopRecording = useCallback(async (options?: { silent?: boolean }) => {
+    isRecordingRef.current = false;
     try {
       console.log('Stopping recording...');
       await audioRecorder.stop();
@@ -146,9 +181,42 @@ export default function ComposeMessageScreen() {
       console.log('Recording stopped. URI:', audioRecorder.uri);
     } catch (error) {
       console.error('Stop recording error:', error);
-      Alert.alert('Error', 'Could not stop recording properly.');
+      if (!options?.silent) {
+        Alert.alert('Error', 'Could not stop recording properly.');
+      }
     }
-  };
+  }, [audioRecorder]);
+
+  // iOS only: expo-audio has no activity-lifecycle hook on iOS to pause and
+  // resume the recorder across backgrounding the way it does on Android (see
+  // its OnActivityEntersBackground/Foreground handlers there), and the app
+  // has no background audio mode, so without this the OS would interrupt the
+  // audio session mid-write with nothing finalizing the file. We stop the
+  // recorder ourselves as soon as the app truly backgrounds (not on
+  // 'inactive', which also covers transient system UI like Control Center,
+  // Notification Center, an incoming call banner, or a Face ID prompt --
+  // none of which should cut off a recording).
+  //
+  // On Android, expo-audio's own native module already pauses the recorder
+  // when the activity backgrounds and resumes it when it comes back to the
+  // foreground (as long as allowsBackgroundRecording stays false, which is
+  // our config) -- forcing a stop here would end the take instead of
+  // letting the user pick back up where they left off.
+  useEffect(() => {
+    if (Platform.OS !== 'ios') {
+      return;
+    }
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'background' && isRecording) {
+        console.log('App backgrounded mid-recording; stopping recorder to preserve the take.');
+        setInterruptionNotice(
+          'Recording stops automatically when you leave the app, to keep your journal private. What you recorded up to that point has been saved below.'
+        );
+        stopRecording({ silent: true });
+      }
+    });
+    return () => subscription.remove();
+  }, [isRecording, stopRecording]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -179,7 +247,7 @@ export default function ComposeMessageScreen() {
         type: type as 'text' | 'audio',
         textContent: type === 'text' ? textContent.trim() : undefined,
         audioUri: type === 'audio' ? audioRecorder.uri || undefined : undefined,
-        audioDuration: type === 'audio' ? recordingDuration : undefined,
+        audioDuration: type === 'audio' ? recordingSeconds : undefined,
         transcript: undefined,
         // The active-message modal (shown right after saving) drives the
         // actual attempt and moves this to 'pending' itself. Text messages
@@ -332,23 +400,37 @@ export default function ComposeMessageScreen() {
                   
                   {isRecording && (
                     <Text style={[styles.recordingDuration, { color: theme.colors.danger }]}>
-                      {formatDuration(recordingDuration)}
+                      {formatDuration(recordingSeconds)}
                     </Text>
                   )}
-                  
+
                   {audioRecorder.uri && !isRecording && (
                     <Text style={[styles.recordedText, { color: theme.colors.primary }]}>
-                      Recording saved ({formatDuration(recordingDuration)})
+                      Recording saved ({formatDuration(recordingSeconds)})
                     </Text>
                   )}
                 </View>
+
+                {interruptionNotice && audioRecorder.uri && !isRecording && (
+                  <View style={[styles.infoBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                    <IconSymbol
+                      ios_icon_name="info.circle.fill"
+                      android_material_icon_name="info"
+                      size={20}
+                      color={theme.colors.textSecondary}
+                    />
+                    <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
+                      {interruptionNotice}
+                    </Text>
+                  </View>
+                )}
 
                 <TouchableOpacity
                   style={[
                     styles.recordButton,
                     { backgroundColor: isRecording ? theme.colors.danger : theme.colors.primary },
                   ]}
-                  onPress={isRecording ? stopRecording : startRecording}
+                  onPress={isRecording ? () => stopRecording() : startRecording}
                 >
                   <IconSymbol
                     ios_icon_name={isRecording ? 'stop.fill' : 'mic.fill'}
