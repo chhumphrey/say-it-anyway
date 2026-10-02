@@ -414,7 +414,7 @@ export default function ComposeMessageScreen() {
 
                   {audioRecorder.uri && !isRecording && (
                     <Text style={[styles.recordedText, { color: theme.colors.primary }]}>
-                      Recording saved ({formatDuration(recordingSeconds)})
+                      Recording ready ({formatDuration(recordingSeconds)}). Tap Save to keep it.
                     </Text>
                   )}
                 </View>
