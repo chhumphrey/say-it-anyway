@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.chumphrey.sayitanywaygj",
-      "buildNumber": "5",
+      "buildNumber": "7",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -27,7 +27,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.chumphrey.sayitanywaygj",
-      "versionCode": 11,
+      "versionCode": 13,
       "permissions": [
         "RECORD_AUDIO",
         "READ_EXTERNAL_STORAGE",
