@@ -70,14 +70,22 @@ export default function ComposeMessageScreen() {
     if (status.hasError || !status.url) {
       Alert.alert(
         'Recording Interrupted',
-        "Something interrupted the audio system and this recording couldn't be completed. Please try recording again."
+        "Something interrupted the recording and it couldn't be completed. Please try again."
       );
     } else {
-      setInterruptionNotice('Recording stopped unexpectedly, but what you recorded has been saved below.');
+      setInterruptionNotice('Recording stopped unexpectedly. What you recorded is below. Tap Save to keep it.');
     }
   }, []);
 
-  const audioRecorder = useAudioRecorder(RecordingPresets.LOW_QUALITY, handleRecordingStatusUpdate);
+  // directory: 'document' overrides the preset's implicit default of
+  // 'cache' -- Caches can be purged by the OS at any time, independent of
+  // app updates, and on iOS the container path itself isn't guaranteed
+  // stable across an update either way. Documents is never purged and is
+  // included in backups. See utils/audioPaths.ts.
+  const audioRecorder = useAudioRecorder(
+    { ...RecordingPresets.LOW_QUALITY, directory: 'document' },
+    handleRecordingStatusUpdate
+  );
   // Native-truth duration -- counts only actually-captured audio, so it
   // correctly freezes during a pause (e.g. an incoming call) instead of
   // drifting ahead of what's really in the file, the way a JS setInterval
@@ -210,7 +218,7 @@ export default function ComposeMessageScreen() {
       if (nextState === 'background' && isRecording) {
         console.log('App backgrounded mid-recording; stopping recorder to preserve the take.');
         setInterruptionNotice(
-          'Recording stops automatically when you leave the app, to keep your journal private. What you recorded up to that point has been saved below.'
+          'Recording stops automatically when you leave the app, to keep your journal private. What you recorded is below. Tap Save to keep it.'
         );
         stopRecording({ silent: true });
       }

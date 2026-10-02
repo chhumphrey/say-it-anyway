@@ -14,12 +14,12 @@ import {
   attemptCountLabel,
 } from '@/utils/transcriptionAttempt';
 import { markTranscriptionActive, markTranscriptionInactive } from '@/utils/activeTranscriptions';
-import type { TranscriptionDownloadProgress } from '@/utils/transcriptionService';
+import type { TranscriptionDownloadProgress, TranscriptionFailureStage } from '@/utils/transcriptionService';
 
 type Phase =
   | { kind: 'downloading'; progress: number | null }
   | { kind: 'transcribing' }
-  | { kind: 'retry-prompt'; attempts: number }
+  | { kind: 'retry-prompt'; attempts: number; stage: TranscriptionFailureStage }
   | { kind: 'unavailable' };
 
 export type TranscriptionAttemptFinish =
@@ -73,6 +73,14 @@ export function TranscriptionAttemptModal({ message, onFinished }: Props) {
         return;
       }
 
+      if (result.outcome === 'missing') {
+        // Defensive only -- the UI that opens this modal should never do
+        // so for an audioMissing message. Close quietly rather than show
+        // an error for something that was never really an attempt.
+        onFinished({ outcome: 'declined' });
+        return;
+      }
+
       workingMessageRef.current = { ...current, transcriptionAttempts: result.attempts };
 
       if (result.exhausted) {
@@ -80,7 +88,7 @@ export function TranscriptionAttemptModal({ message, onFinished }: Props) {
         return;
       }
 
-      setPhase({ kind: 'retry-prompt', attempts: result.attempts });
+      setPhase({ kind: 'retry-prompt', attempts: result.attempts, stage: result.stage });
     };
 
     attemptRef.current = () => {
@@ -166,7 +174,11 @@ export function TranscriptionAttemptModal({ message, onFinished }: Props) {
             <>
               <Text style={[styles.title, { color: theme.colors.text }]}>Transcription failed</Text>
               <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-                {attemptCountLabel(phase.attempts)}
+                {phase.stage === 'model'
+                  ? 'Transcription needs a one-time download. Check your connection and available storage, then try again.'
+                  : phase.stage === 'transcribe'
+                  ? "Transcription couldn't finish this time. Please try again."
+                  : attemptCountLabel(phase.attempts)}
               </Text>
               <Text style={[styles.subtitle, { color: theme.colors.text, marginTop: 4 }]}>
                 Retry now?

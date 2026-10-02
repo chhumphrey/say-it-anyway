@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { getSceneImageUrl } from '@/utils/themes';
-import { createBackup, restoreFromBackup, getLastBackupDate, RestoreResult } from '@/utils/backup';
+import { createBackup, restoreFromBackup, getLastBackupDate, RestoreResult, BackupResult } from '@/utils/backup';
 
 export default function BackupRestoreScreen() {
   const router = useRouter();
@@ -23,6 +23,10 @@ export default function BackupRestoreScreen() {
   const [isRestoring, setIsRestoring] = useState(false);
   const [lastBackupDate, setLastBackupDate] = useState<string | null>(null);
   const [restoreResult, setRestoreResult] = useState<RestoreResult | null>(null);
+  // Captured but not yet surfaced in the UI below -- the "N recordings
+  // couldn't be included" wording needs sign-off first (see conversation).
+  // Wire missingAudioCount into the UI once approved.
+  const [backupResult, setBackupResult] = useState<BackupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -47,8 +51,10 @@ export default function BackupRestoreScreen() {
     setIsCreating(true);
     setError(null);
     setRestoreResult(null);
+    setBackupResult(null);
     try {
-      await createBackup();
+      const result = await createBackup();
+      setBackupResult(result);
       const date = await getLastBackupDate();
       setLastBackupDate(date);
     } catch (err: any) {
@@ -153,6 +159,14 @@ export default function BackupRestoreScreen() {
                 {isCreating ? 'Creating Backup…' : 'Create Backup'}
               </Text>
             </TouchableOpacity>
+
+            {backupResult && backupResult.missingAudioCount > 0 && (
+              <Text style={[styles.resultLine, { color: theme.colors.textSecondary, marginTop: 12 }]}>
+                {backupResult.missingAudioCount === 1
+                  ? "Backup created. 1 recording couldn't be included because its audio is no longer on this device."
+                  : `Backup created. ${backupResult.missingAudioCount} recordings couldn't be included because their audio is no longer on this device.`}
+              </Text>
+            )}
           </View>
 
           {/* Restore Section */}

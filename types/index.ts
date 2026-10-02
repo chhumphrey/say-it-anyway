@@ -34,13 +34,34 @@ export interface Message {
   timestamp: number;
   type: 'text' | 'audio';
   textContent?: string;
+  // The absolute path as originally recorded. Preserved for backward
+  // compatibility with old backups and pre-1.3.1 data, but never trusted as
+  // current on its own -- see audioRelativePath, which normalizeMessage()
+  // resolves this back into on every read once migration has run.
   audioUri?: string;
+  // Path relative to the app's Documents directory, resolved to a fresh
+  // absolute audioUri at read time. The source of truth for every
+  // recording's location since 1.3.1; absent until the one-time migration
+  // locates and copies an older recording.
+  audioRelativePath?: string;
+  // Set by the migration pass when the underlying audio file could not be
+  // found anywhere on disk. The message and any transcript are preserved;
+  // only playback/re-transcription are unavailable.
+  audioMissing?: boolean;
   audioDuration?: number;
   transcript?: string;
   transcriptionStatus?: TranscriptionStatus;
   transcriptionError?: string;
-  // Number of transcription attempts that have actually run and failed for
-  // this message. Never incremented by a decline or an ignored prompt.
+  // Which stage of transcribe() produced transcriptionError -- 'model'
+  // (download/init), 'decode', or 'transcribe' (whisper.rn's own call).
+  // Only 'decode' is intrinsic to this recording's bytes; see
+  // utils/transcriptionAttempt.ts for why that's the only one that counts
+  // toward transcriptionAttempts.
+  transcriptionErrorStage?: 'model' | 'decode' | 'transcribe';
+  // Number of DECODE-stage attempts that have failed for this message --
+  // the only stage intrinsic to the recording itself, so the only one that
+  // counts toward the cap. Never incremented by a decline, an ignored
+  // prompt, or a transient (model/transcribe-stage) failure.
   // Capped at MAX_TRANSCRIPTION_ATTEMPTS (see utils/transcriptionAttempt.ts).
   transcriptionAttempts?: number;
   // How many times the background-recovery banner has been dismissed or

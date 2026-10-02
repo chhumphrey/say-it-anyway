@@ -9,6 +9,10 @@ import { initWhisper, type WhisperContext } from 'whisper.rn';
 import { Directory, File, Paths } from 'expo-file-system';
 
 import AudioWavDecoder from '@/modules/audio-wav-decoder/src';
+import { TranscriptionStageError, type TranscriptionFailureStage } from '@/utils/transcriptionStageError';
+
+export type { TranscriptionFailureStage };
+export { TranscriptionStageError };
 
 // Quantized base.en (~60MB download) rather than the full fp16 model
 // (~148MB) -- a much smaller one-time download and smaller memory
@@ -90,6 +94,13 @@ function isWavFile(uri: string): boolean {
   return uri.toLowerCase().split('?')[0].endsWith('.wav');
 }
 
+function describeError(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return String(error);
+}
+
 // whisper.rn's transcribe() only reads raw WAV/PCM. Recordings made by this
 // app are compressed (.m4a on iOS, .3gp on Android), so they're decoded to a
 // temporary mono 16kHz WAV file first, via the AudioWavDecoder native module
@@ -117,14 +128,29 @@ export const TranscriptionService = {
    * instance.
    */
   async transcribe(audioUri: string, callbacks?: TranscriptionAttemptCallbacks): Promise<string> {
-    const context = await getWhisperContext(callbacks?.onDownloadProgress);
+    let context;
+    try {
+      context = await getWhisperContext(callbacks?.onDownloadProgress);
+    } catch (error) {
+      throw new TranscriptionStageError('model', `Model download or initialization failed: ${describeError(error)}`);
+    }
+
     callbacks?.onTranscribingStart?.();
-    const { path: wavPath, isTemporary } = await ensureWavFile(audioUri);
+
+    let wavPath: string;
+    let isTemporary: boolean;
+    try {
+      ({ path: wavPath, isTemporary } = await ensureWavFile(audioUri));
+    } catch (error) {
+      throw new TranscriptionStageError('decode', `Could not decode this recording: ${describeError(error)}`);
+    }
 
     try {
       const { promise } = context.transcribe(wavPath, { language: 'en' });
       const { result } = await promise;
       return (result ?? '').trim();
+    } catch (error) {
+      throw new TranscriptionStageError('transcribe', `Transcription failed: ${describeError(error)}`);
     } finally {
       if (isTemporary) {
         try {

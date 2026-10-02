@@ -23,7 +23,7 @@ export function PendingTranscriptionBanner() {
   const loadStuck = useCallback(async () => {
     const all = await StorageService.getMessages();
     const stuck = all.filter(
-      (m) => m.type === 'audio' && m.transcriptionStatus === 'pending' && !isTranscriptionActive(m.id)
+      (m) => m.type === 'audio' && !m.audioMissing && m.transcriptionStatus === 'pending' && !isTranscriptionActive(m.id)
     );
     stuckMessagesRef.current = stuck;
     setStuckMessages(stuck);

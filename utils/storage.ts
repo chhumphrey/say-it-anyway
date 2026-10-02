@@ -2,6 +2,20 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Recipient, Message, UserProfile, ThemeName, CustomColors, BackgroundSettings, SupportRegion } from '@/types';
 import { normalizeMessage } from '@/utils/transcriptionState';
+import { toRelativeAudioPath } from '@/utils/audioPaths';
+
+// A freshly-recorded message's audioUri points at wherever the recorder
+// just wrote the file (Paths.document, as of 1.3.1), so it converts to a
+// relative path immediately -- no migration pass needed for anything
+// recorded from here on. Centralized here so every caller that saves a
+// message gets this for free, not just compose-message.tsx.
+function withRelativeAudioPath(message: Message): Message {
+  if (message.type !== 'audio' || !message.audioUri || message.audioRelativePath) {
+    return message;
+  }
+  const relativePath = toRelativeAudioPath(message.audioUri);
+  return relativePath ? { ...message, audioRelativePath: relativePath } : message;
+}
 
 const RECIPIENTS_KEY = 'recipients';
 const MESSAGES_KEY = 'messages';
@@ -122,7 +136,7 @@ export class StorageService {
     try {
       console.log('StorageService.addMessage: Adding message', message.id);
       const messages = await this.getMessages();
-      messages.push(message);
+      messages.push(withRelativeAudioPath(message));
       await this.saveMessages(messages);
     } catch (error) {
       console.error('Error adding message:', error);
@@ -140,7 +154,7 @@ export class StorageService {
       const messages = await this.getMessages();
       const index = messages.findIndex(m => m.id === updatedMessage.id);
       if (index !== -1) {
-        messages[index] = updatedMessage;
+        messages[index] = withRelativeAudioPath(updatedMessage);
         await this.saveMessages(messages);
         console.log('StorageService.updateMessage: Successfully updated');
       } else {

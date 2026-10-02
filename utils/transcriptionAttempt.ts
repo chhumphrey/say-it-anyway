@@ -9,6 +9,11 @@ import { router } from 'expo-router';
 import { Message } from '@/types';
 import { StorageService } from '@/utils/storage';
 import { TranscriptionService, type TranscriptionAttemptCallbacks } from '@/utils/transcriptionService';
+// Imported directly from the dependency-free module (not re-exported via
+// transcriptionService) so that mocking transcriptionService.ts in tests
+// (which pulls in whisper.rn/expo-file-system) never shadows the class
+// this file's `instanceof` check relies on.
+import { TranscriptionStageError, type TranscriptionFailureStage } from '@/utils/transcriptionStageError';
 import { screenMessage } from '@/utils/mentalHealthScreening';
 
 export const MAX_TRANSCRIPTION_ATTEMPTS = 3;
@@ -21,20 +26,42 @@ export function attemptCountLabel(attempts: number): string {
 
 export type TranscriptionAttemptResult =
   | { outcome: 'success'; flagged: boolean }
-  | { outcome: 'failed'; attempts: number; exhausted: boolean };
+  // Only ever reached for a 'decode' failure -- see below.
+  | { outcome: 'failed'; attempts: number; exhausted: boolean; stage: TranscriptionFailureStage }
+  // The message is flagged audioMissing; no attempt was made at all.
+  | { outcome: 'missing' };
 
 /**
  * Runs exactly one transcription attempt for `message`. On success, screens
  * the transcript immediately -- before returning, never waiting on any modal
- * or further UI interaction -- and marks the message 'successful'. On
- * failure, increments transcriptionAttempts and leaves the message in the
- * transitional 'failed' state (or 'unavailable' if the cap is now reached);
- * the caller decides whether to prompt for a retry.
+ * or further UI interaction -- and marks the message 'successful'.
+ *
+ * On failure, only a 'decode' failure -- the decoder rejecting this
+ * specific recording's bytes, the one stage that's actually a property of
+ * the file -- counts toward transcriptionAttempts and can reach the
+ * terminal 'unavailable' state. A 'model' (download/init) or 'transcribe'
+ * (whisper.rn's own call) failure is environmental, not a property of the
+ * recording, so it never counts against the cap and always leaves the
+ * message retryable ('untranscribed'). This is safe from looping without
+ * user action: every retry path (this modal's own retry prompt, the
+ * manual Transcribe/Try Again button, the recovery banner's Review
+ * button) requires an explicit tap -- nothing here or upstream ever
+ * re-invokes this on its own.
+ *
+ * Never attempts a message flagged audioMissing -- there's no file to
+ * decode, so this would otherwise be misclassified as a 'decode' failure
+ * and wrongly count against the cap. The caller (the UI) should never
+ * reach this for such a message either; this is the defensive backstop.
  */
 export async function runTranscriptionAttempt(
   message: Message,
   callbacks?: TranscriptionAttemptCallbacks
 ): Promise<TranscriptionAttemptResult> {
+  if (message.audioMissing) {
+    console.warn('runTranscriptionAttempt: refusing to attempt a message flagged audioMissing', message.id);
+    return { outcome: 'missing' };
+  }
+
   const startingAttempts = message.transcriptionAttempts ?? 0;
   const pendingMessage: Message = {
     ...message,
@@ -47,7 +74,7 @@ export async function runTranscriptionAttempt(
   try {
     const transcript = await TranscriptionService.transcribe(message.audioUri!, callbacks);
     if (!transcript) {
-      throw new Error('Transcription produced no text');
+      throw new TranscriptionStageError('transcribe', 'Transcription produced no text');
     }
 
     const screeningResult = screenMessage(transcript);
@@ -56,6 +83,7 @@ export async function runTranscriptionAttempt(
       transcript,
       transcriptionStatus: 'successful',
       transcriptionError: undefined,
+      transcriptionErrorStage: undefined,
     };
     await StorageService.updateMessage(successMessage);
 
@@ -67,16 +95,33 @@ export async function runTranscriptionAttempt(
     return { outcome: 'success', flagged: screeningResult.isFlagged };
   } catch (error) {
     console.error('Transcription attempt failed for message', message.id, error);
+    const stage: TranscriptionFailureStage =
+      error instanceof TranscriptionStageError ? error.stage : 'transcribe';
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (stage !== 'decode') {
+      // Transient: never counts against the cap, always leaves the
+      // message retryable.
+      await StorageService.updateMessage({
+        ...pendingMessage,
+        transcriptionStatus: 'untranscribed',
+        transcriptionError: errorMessage,
+        transcriptionErrorStage: stage,
+      });
+      return { outcome: 'failed', attempts: startingAttempts, exhausted: false, stage };
+    }
+
     const attempts = startingAttempts + 1;
     const exhausted = attempts >= MAX_TRANSCRIPTION_ATTEMPTS;
     const failedMessage: Message = {
       ...pendingMessage,
       transcriptionStatus: exhausted ? 'unavailable' : 'failed',
       transcriptionAttempts: attempts,
-      transcriptionError: error instanceof Error ? error.message : String(error),
+      transcriptionError: errorMessage,
+      transcriptionErrorStage: stage,
     };
     await StorageService.updateMessage(failedMessage);
-    return { outcome: 'failed', attempts, exhausted };
+    return { outcome: 'failed', attempts, exhausted, stage };
   }
 }
 
@@ -91,32 +136,16 @@ export async function declineRetry(message: Message): Promise<void> {
 
 /**
  * Handles the user declining or ignoring the background-recovery banner for
- * a message stuck in 'pending' from an interrupted attempt. This does NOT
- * count as an attempt -- nothing actually ran -- but repeated dismissals are
- * capped (reusing MAX_TRANSCRIPTION_ATTEMPTS) so a message can't sit
- * unresolved forever without ever reaching a terminal state: hitting the cap
- * counts as if one attempt had failed and proceeds through the normal
- * failure outcome (another 'untranscribed' round, or 'unavailable' if that
- * was the last one available).
+ * a message stuck in 'pending' from an interrupted attempt. This never
+ * counts against transcriptionAttempts and never reaches 'unavailable' --
+ * nothing actually ran, so it says nothing about whether the recording
+ * itself can be decoded. transcriptionBannerDismissals is kept only as a
+ * display/throttling count, not a path to the terminal state.
  */
 export async function dismissRecoveryPrompt(message: Message): Promise<void> {
-  const dismissals = (message.transcriptionBannerDismissals ?? 0) + 1;
-
-  if (dismissals < MAX_TRANSCRIPTION_ATTEMPTS) {
-    await StorageService.updateMessage({
-      ...message,
-      transcriptionStatus: 'untranscribed',
-      transcriptionBannerDismissals: dismissals,
-    });
-    return;
-  }
-
-  const attempts = (message.transcriptionAttempts ?? 0) + 1;
-  const exhausted = attempts >= MAX_TRANSCRIPTION_ATTEMPTS;
   await StorageService.updateMessage({
     ...message,
-    transcriptionStatus: exhausted ? 'unavailable' : 'untranscribed',
-    transcriptionAttempts: attempts,
-    transcriptionBannerDismissals: 0,
+    transcriptionStatus: 'untranscribed',
+    transcriptionBannerDismissals: (message.transcriptionBannerDismissals ?? 0) + 1,
   });
 }

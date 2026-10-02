@@ -1,4 +1,5 @@
 import { Message, TranscriptionStatus } from '@/types';
+import { resolveAudioUri } from '@/utils/audioPaths';
 
 // Messages saved before on-device transcription existed went through a
 // placeholder that stored this exact string as the "transcript" and marked
@@ -30,6 +31,15 @@ export function normalizeMessage(message: Message): Message {
     return message;
   }
 
+  // The relative path, not whatever absolute audioUri happens to be sitting
+  // in storage, is the source of truth once migration has run for this
+  // message -- resolve it fresh against the current session's actual
+  // Documents directory every time, rather than trusting a persisted
+  // absolute string that may have gone stale since it was written.
+  const audioUri = message.audioRelativePath
+    ? resolveAudioUri(message.audioRelativePath)
+    : message.audioUri;
+
   const attempts = typeof message.transcriptionAttempts === 'number' ? message.transcriptionAttempts : 0;
   let status = message.transcriptionStatus as string | undefined;
 
@@ -46,6 +56,7 @@ export function normalizeMessage(message: Message): Message {
 
   return {
     ...message,
+    audioUri,
     transcriptionStatus: status as TranscriptionStatus,
     transcriptionAttempts: attempts,
   };

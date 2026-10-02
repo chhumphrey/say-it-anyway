@@ -7,6 +7,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StorageService } from './storage';
 import { Recipient, Message } from '@/types';
+import { toRelativeAudioPath } from '@/utils/audioPaths';
 
 const BACKUP_VERSION = 1;
 const LAST_BACKUP_KEY = 'last_backup_date';
@@ -38,6 +39,16 @@ export interface RestoreResult {
   messagesSkipped: number;
   audioRestored: number;
   audioFailed: number;
+}
+
+export interface BackupResult {
+  // Audio messages whose underlying file couldn't be found on this device
+  // at export time (e.g. still unresolved by the migration, or genuinely
+  // lost) and so were left out of the archive. The message and any
+  // transcript are still included in the backup -- only the audio file
+  // itself is absent. UI wording for surfacing this count is pending
+  // approval; the count is exposed here so it's ready to wire up.
+  missingAudioCount: number;
 }
 
 function base64ToUint8Array(base64: string): Uint8Array {
@@ -99,7 +110,7 @@ async function buildZip(
 
 // ─── createBackup ─────────────────────────────────────────────────────────────
 
-export async function createBackup(): Promise<void> {
+export async function createBackup(): Promise<BackupResult> {
   console.log('backup.createBackup: Starting backup creation');
 
   const [recipients, messages, profile, theme, customColors, backgroundSettings, supportRegion] =
@@ -117,26 +128,34 @@ export async function createBackup(): Promise<void> {
 
   const audioIndex: Record<string, string> = {};
   const zipFiles: Record<string, Uint8Array> = {};
+  let missingAudioCount = 0;
 
   // Audio files only exist on native — skip entirely on web
   if (Platform.OS !== 'web') {
     for (const message of messages) {
-      if (message.type === 'audio' && message.audioUri) {
-        try {
-          const audioFile = new File(message.audioUri);
-          if (!audioFile.exists) {
-            console.log('backup.createBackup: Audio file missing, skipping:', message.id);
-            continue;
-          }
-          const ext = message.audioUri.split('.').pop() || 'm4a';
-          const zipPath = `audio/${message.id}.${ext}`;
-          const base64 = await audioFile.base64();
-          zipFiles[zipPath] = base64ToUint8Array(base64);
-          audioIndex[message.id] = zipPath;
-          console.log('backup.createBackup: Packed audio for message', message.id);
-        } catch (err) {
-          console.warn('backup.createBackup: Could not read audio for message', message.id, err);
+      if (message.type !== 'audio') {
+        continue;
+      }
+      if (message.audioMissing || !message.audioUri) {
+        missingAudioCount++;
+        continue;
+      }
+      try {
+        const audioFile = new File(message.audioUri);
+        if (!audioFile.exists) {
+          console.log('backup.createBackup: Audio file missing, skipping:', message.id);
+          missingAudioCount++;
+          continue;
         }
+        const ext = message.audioUri.split('.').pop() || 'm4a';
+        const zipPath = `audio/${message.id}.${ext}`;
+        const base64 = await audioFile.base64();
+        zipFiles[zipPath] = base64ToUint8Array(base64);
+        audioIndex[message.id] = zipPath;
+        console.log('backup.createBackup: Packed audio for message', message.id);
+      } catch (err) {
+        console.warn('backup.createBackup: Could not read audio for message', message.id, err);
+        missingAudioCount++;
       }
     }
   }
@@ -166,7 +185,8 @@ export async function createBackup(): Promise<void> {
   }
 
   await AsyncStorage.setItem(LAST_BACKUP_KEY, new Date().toISOString());
-  console.log('backup.createBackup: Complete');
+  console.log('backup.createBackup: Complete. Missing audio:', missingAudioCount);
+  return { missingAudioCount };
 }
 
 // ─── restoreFromBackup ────────────────────────────────────────────────────────
@@ -258,25 +278,39 @@ export async function restoreFromBackup(): Promise<RestoreResult | null> {
       continue;
     }
 
-    if (message.type === 'audio' && manifest.audioIndex[message.id]) {
+    if (message.type === 'audio') {
       const zipPath = manifest.audioIndex[message.id];
-      if (audioDir && unzipped[zipPath]) {
+      if (audioDir && zipPath && unzipped[zipPath]) {
         try {
           const ext = zipPath.split('.').pop() || 'm4a';
           const newAudioFile = new File(audioDir, `${message.id}.${ext}`);
           const audioBase64 = uint8ArrayToBase64(unzipped[zipPath]);
           newAudioFile.write(audioBase64, { encoding: BASE64 });
           message.audioUri = newAudioFile.uri;
+          // The restored file always lands under Paths.document regardless
+          // of what audioUri looked like on the device that created this
+          // backup (old absolute-path backups included) -- so this always
+          // succeeds, and the restored message needs no later migration
+          // pass to be fully on the current scheme.
+          message.audioRelativePath = toRelativeAudioPath(newAudioFile.uri) ?? undefined;
+          message.audioMissing = false;
           result.audioRestored++;
           console.log('backup.restoreFromBackup: Restored audio for message', message.id);
         } catch (err) {
           console.warn('backup.restoreFromBackup: Failed to write audio for message', message.id, err);
           message.audioUri = undefined;
+          message.audioRelativePath = undefined;
+          message.audioMissing = true;
           result.audioFailed++;
         }
       } else {
-        // Either web platform or audio not in archive
+        // Web platform, or the audio wasn't in the archive at all --
+        // including a backup made on a device where the source file was
+        // already missing (see createBackup, which now reports this via
+        // missingAudioSkipped rather than silently omitting it).
         message.audioUri = undefined;
+        message.audioRelativePath = undefined;
+        message.audioMissing = true;
         result.audioFailed++;
       }
     }

@@ -43,13 +43,26 @@ module.exports = {
     {
       // Plain Node/CommonJS files (not bundled by Metro) -- require()/__dirname/etc. are
       // expected here, unlike the rest of the app's ES module source.
-      files: ['metro.config.js', 'scripts/**/*.js'],
+      files: ['metro.config.js', 'scripts/**/*.js', 'jest.setup.js'],
       env: {
         node: true
       },
       rules: {
         '@typescript-eslint/no-var-requires': 'off',
         '@typescript-eslint/no-require-imports': 'off'
+      }
+    },
+    {
+      // Jest specs and mocks: jest/describe/it/expect globals, plus the
+      // require() factory form jest.mock(() => require(...)) needs.
+      files: ['**/__tests__/**/*.ts', '__mocks__/**/*.ts', 'jest.setup.js'],
+      env: {
+        node: true,
+        jest: true
+      },
+      rules: {
+        '@typescript-eslint/no-require-imports': 'off',
+        'import/first': 'off'
       }
     }
   ]

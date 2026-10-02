@@ -4,6 +4,10 @@
     "strict": true,
     "baseUrl": ".",
     "jsx": "react-jsx",
+    "types": [
+      "jest",
+      "node"
+    ],
     "paths": {
       "@/*": [
         "./*"

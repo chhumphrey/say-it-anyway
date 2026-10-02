@@ -22,6 +22,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { screenMessage } from '@/utils/mentalHealthScreening';
 import { hasRealTranscript } from '@/utils/transcriptionState';
 import { MAX_TRANSCRIPTION_ATTEMPTS, attemptCountLabel } from '@/utils/transcriptionAttempt';
+import { onAudioMigrationSettled } from '@/utils/audioMigrationEvents';
 import { TranscriptionAttemptModal, type TranscriptionAttemptFinish } from '@/components/TranscriptionAttemptModal';
 
 interface AudioPlayerState {
@@ -110,6 +111,16 @@ export default function RecipientDetailScreen() {
 
     return () => clearInterval(interval);
   }, [messages, refreshSilently]);
+
+  // Covers the one gap useFocusEffect above doesn't: a screen that's been
+  // open and mounted continuously since before the audio migration
+  // finished (only possible if the launch-safety timeout let the app open
+  // while migration was still running in the background -- see
+  // app/_layout.tsx). Refreshes as soon as migration settles, without
+  // requiring the user to navigate away and back or restart the app.
+  useEffect(() => {
+    return onAudioMigrationSettled(refreshSilently);
+  }, [refreshSilently]);
 
   const toggleHidden = useCallback(async (message: Message) => {
     console.log('Toggling hidden for message:', message.id);
@@ -508,13 +519,21 @@ function MessageCard({
         </TouchableOpacity>
       </View>
 
-      {message.type === 'audio' && message.audioUri && (
+      {message.type === 'audio' && message.audioUri && !message.audioMissing && (
         <AudioPlayer
           audioUri={message.audioUri}
           audioDuration={message.audioDuration}
           theme={theme}
           formatDuration={formatDuration}
         />
+      )}
+
+      {message.type === 'audio' && message.audioMissing && (
+        <View style={[styles.transcriptBox, { backgroundColor: theme.colors.background }]}>
+          <Text style={[styles.transcriptLabel, { color: theme.colors.textSecondary }]}>
+            The audio for this message couldn't be found on this device.
+          </Text>
+        </View>
       )}
 
       {message.textContent && (
@@ -555,7 +574,7 @@ function MessageCard({
         </View>
       )}
 
-      {message.type === 'audio' && message.transcriptionStatus === 'pending' && (
+      {message.type === 'audio' && !message.audioMissing && message.transcriptionStatus === 'pending' && (
         <View style={[styles.transcriptBox, styles.transcribingRow, { backgroundColor: theme.colors.background }]}>
           <ActivityIndicator size="small" color={theme.colors.textSecondary} />
           <Text style={[styles.transcriptLabel, { color: theme.colors.textSecondary, marginBottom: 0, marginLeft: 8 }]}>
@@ -565,6 +584,7 @@ function MessageCard({
       )}
 
       {message.type === 'audio' &&
+        !message.audioMissing &&
         (message.transcriptionStatus === 'untranscribed' || message.transcriptionStatus === 'failed') &&
         !hasRealTranscript(message) && (
           <View style={[styles.transcriptBox, { backgroundColor: theme.colors.background }]}>
@@ -594,7 +614,7 @@ function MessageCard({
           </View>
         )}
 
-      {message.type === 'audio' && message.transcriptionStatus === 'unavailable' && (
+      {message.type === 'audio' && !message.audioMissing && message.transcriptionStatus === 'unavailable' && (
         <View style={[styles.transcriptBox, { backgroundColor: theme.colors.background }]}>
           <Text style={[styles.transcriptLabel, { color: theme.colors.textSecondary }]}>
             Transcription unavailable for this message.
